@@ -11,7 +11,7 @@ class AudioFolder(data.Dataset):
         self.split = split
         self.input_length = input_length
         self.get_songlist()
-        self.binary = np.load("./../split/mtat/binary.npy")
+        self.binary = np.load("./../split/mtat/binary.npy")  # Multi-hot vector labels
 
     def __getitem__(self, index):
         npy, tag_binary = self.get_npy(index)
@@ -51,8 +51,10 @@ class AudioFolder(data.Dataset):
         # Loading the NPYs here, MP3s should be pre-processed first using `preprocessing/mtat_read.py`
         npy_path = os.path.join(self.root, "mtat", "npy", fn.split("/")[1][:-3]) + "npy"
         npy = np.load(npy_path, mmap_mode="r")
+        # Get a random subsection of the song based on the model input length
         random_idx = int(np.floor(np.random.random(1) * (len(npy) - self.input_length)))
         npy = np.array(npy[random_idx : random_idx + self.input_length])
+        # Get the corresponding multi-hot vector label
         tag_binary = self.binary[int(ix)]
         return npy, tag_binary
 
