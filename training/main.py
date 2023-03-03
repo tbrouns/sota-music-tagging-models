@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from solver import Solver
+from .solver import Solver
 
 
 def main(config):

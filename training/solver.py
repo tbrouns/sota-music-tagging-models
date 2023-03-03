@@ -5,7 +5,8 @@ import os
 import pickle
 import time
 
-import model as Model
+from .model import FCN, Musicnn, CRNN, SampleCNN, SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res, CNNSA, HarmonicCNN
+
 import numpy as np
 import pandas as pd
 import torch
@@ -198,23 +199,23 @@ class Solver(object):
 
     def get_model(self):
         if self.model_type == "fcn":
-            return Model.FCN()
+            return FCN()
         elif self.model_type == "musicnn":
-            return Model.Musicnn(dataset=self.dataset)
+            return Musicnn(dataset=self.dataset)
         elif self.model_type == "crnn":
-            return Model.CRNN()
+            return CRNN()
         elif self.model_type == "sample":
-            return Model.SampleCNN()
+            return SampleCNN()
         elif self.model_type == "se":
-            return Model.SampleCNNSE()
+            return SampleCNNSE()
         elif self.model_type == "short":
-            return Model.ShortChunkCNN()
+            return ShortChunkCNN()
         elif self.model_type == "short_res":
-            return Model.ShortChunkCNN_Res()
+            return ShortChunkCNN_Res()
         elif self.model_type == "attention":
-            return Model.CNNSA()
+            return CNNSA()
         elif self.model_type == "hcnn":
-            return Model.HarmonicCNN()
+            return HarmonicCNN()
 
     def build_model(self):
         # model
