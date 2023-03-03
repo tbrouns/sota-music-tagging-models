@@ -40,8 +40,8 @@ class Processor:
         n_songs = len(tracks["file_path"])
         for song_index in tqdm(range(n_songs)):
             filepath = tracks["file_path"][song_index]
-            bucket_path = os.path.join(filepath, "harvest-extract")
-            if check_if_file_exists(bucket_path):
+            bucket_path = os.path.join("harvest-extract", filepath)
+            if self.bucket.check_if_file_exists(bucket_path):
                 record = tracks["record"][song_index]
                 keywords = json.loads(record)["track"]["keywords"]
                 keyword_indices_for_song = []
