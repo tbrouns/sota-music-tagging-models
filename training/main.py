@@ -16,7 +16,9 @@ def main(config):
         from data_loader.msd_loader import get_audio_loader
     elif config.dataset == "jamendo":
         from data_loader.jamendo_loader import get_audio_loader
-
+    elif config.dataset == "bmg":
+        from data_loader.bmg_loader import get_audio_loader
+        
     # audio length
     if config.model_type == "fcn" or config.model_type == "crnn":
         config.input_length = 29 * 16000

@@ -1,5 +1,5 @@
 audioread==2.1.8
-essentia==2.1b6.dev184
+essentia==2.1b6.dev858
 fire==0.2.1
 grpcio==1.25.0
 h5py==2.10.0
@@ -20,4 +20,3 @@ termcolor==1.1.0
 torch==1.2.0
 torchaudio==0.3.0
 tqdm==4.40.0
-
