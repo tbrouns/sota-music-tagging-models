@@ -15,7 +15,7 @@ import time
 
 import fire
 import librosa
-import model as Model
+import .model as Model
 import numpy as np
 import pandas as pd
 import soundfile as psf
@@ -24,7 +24,7 @@ import torch.nn as nn
 import tqdm
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
-from solver import skip_files
+from .solver import skip_files
 from torch.autograd import Variable
 
 TAGS = [

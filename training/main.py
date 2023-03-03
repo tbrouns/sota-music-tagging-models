@@ -11,13 +11,13 @@ def main(config):
 
     # import data loader
     if config.dataset == "mtat":
-        from data_loader.mtat_loader import get_audio_loader
+        from .data_loader.mtat_loader import get_audio_loader
     elif config.dataset == "msd":
-        from data_loader.msd_loader import get_audio_loader
+        from .data_loader.msd_loader import get_audio_loader
     elif config.dataset == "jamendo":
-        from data_loader.jamendo_loader import get_audio_loader
+        from .data_loader.jamendo_loader import get_audio_loader
     elif config.dataset == "bmg":
-        from data_loader.bmg_loader import get_audio_loader
+        from .data_loader.bmg_loader import get_audio_loader
         
     # audio length
     if config.model_type == "fcn" or config.model_type == "crnn":

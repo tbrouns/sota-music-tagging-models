@@ -10,46 +10,53 @@
 # Get batch of indices for song list
 # Download the batch of song, load with librosa
 
+import os
 import numpy as np
 from torch.utils import data
+import librosa
 
 from prosaic_common.config import get_cache_dir
 from prosaic_common.utils.utils_data import load_pickle
+from prosaic_common.storage import GCP_BUCKETS
 
 
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
         self.bucket = GCP_BUCKETS["songs"]
         self.cache_dir = os.path.join(get_cache_dir(), "bmg")
-        self.npy_dir = os.path.join(self.cache_dir, "npy")
-        os.makedirs(self.npy_dir, exist_ok=True)
+        self.mp3_dir = os.path.join(self.cache_dir, "mp3")
+        os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
         self.keywords = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
         self.num_keyswords = len(self.keywords)
         self.batch_size = batch_size
+        self.split = split
+        self.input_length = input_length
         self.get_songlist()
             
             
     def __getitem__(self, index):
         # Download the song
-        file_path = self.file_list(index)
+        file_path = self.file_list[index]
         batch_index = index % self.batch_size
         load_path = os.path.join("harvest-extract", file_path)
         ext = os.path.splitext(file_path)[1]
         filename = f"{str(batch_index).zfill(3)}{ext}"
-        save_path = os.path.join(self.cache_dir, filename)
+        save_path = os.path.join(self.mp3_dir, filename)
         #TODO: figure out whether this can be done without saving the file to disk
         self.bucket.download_to_file(load_path=load_path, save_path=save_path)
         x, sr = librosa.load(save_path, sr=self.fs)
         # Get a random subsection of the song based on the model input length
         random_idx = int(np.floor(np.random.random(1) * (len(x) - self.input_length)))
-        x = np.array(x[random_idx : random_idx + self.input_length])
+        x_audio = np.array(x[random_idx : random_idx + self.input_length])
         keyword_indices = self.file_dict[file_path]
         # Get the tag labels
         y_labels = np.zeros(self.num_keyswords, dtype=int)
         y_labels[keyword_indices] = 1
-        return x.astype("float32"), y.astype("float32")
+        return x_audio.astype("float32"), y_labels.astype("float32")
     
+    def __len__(self):
+        return len(self.file_list)
     
     def get_songlist(self):
         pkl_path = os.path.join(self.cache_dir, f"bmg_{self.split.lower()}.pkl")
@@ -74,28 +81,7 @@ class AudioFolder(data.Dataset):
         self.bucket.download_to_file(load_path=audio_path, save_path=save_path)
         x, sr = librosa.load(save_path, sr=self.fs)
         os.remove(save_path)
-        return x
-
-    def iterate(self):
-        # Download, convert and save the NPY files
-        self.get_paths()
-        index = 0
-        for audio_path in tqdm.tqdm(self.files):
-            if index > 100:
-                break
-            npy_dir =  os.path.join(self.npy_dir, os.path.dirname(audio_path))
-            basename = get_basename_no_extension(audio_path)
-            npy_path = os.path.join(npy_dir, f"{basename}.npy")
-            if not os.path.exists(npy_path):
-                try:
-                    os.makedirs(npy_dir, exist_ok=True)
-                    x = self.get_npy(audio_path)
-                    np.save(open(npy_path, "wb"), x)
-                except RuntimeError:
-                    # some audio files are broken
-                    print(audio_path)
-                    continue
-    
+        return x    
                        
             
 def get_audio_loader(root, batch_size, split="TRAIN", num_workers=0, input_length=None):

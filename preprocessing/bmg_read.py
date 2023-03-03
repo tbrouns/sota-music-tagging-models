@@ -1,7 +1,6 @@
 import glob
 import os
 
-import fire
 import librosa
 import numpy as np
 from tqdm import tqdm
@@ -41,17 +40,19 @@ class Processor:
         n_songs = len(tracks["file_path"])
         for song_index in tqdm(range(n_songs)):
             filepath = tracks["file_path"][song_index]
-            record = tracks["record"][song_index]
-            keywords = json.loads(record)["track"]["keywords"]
-            keyword_indices_for_song = []
-            for keyword in keywords:
-                keyword = keyword.lower()
-                if keyword not in keywords_dict:
-                    keywords_dict[keyword] = self.keyword_index
-                    self.keyword_index += 1
-                keyword_indices_for_song.append(keywords_dict[keyword])
-            if keyword_indices_for_song:
-                self.data_dict[filepath] = keyword_indices_for_song
+            bucket_path = os.path.join(filepath, "harvest-extract")
+            if check_if_file_exists(bucket_path):
+                record = tracks["record"][song_index]
+                keywords = json.loads(record)["track"]["keywords"]
+                keyword_indices_for_song = []
+                for keyword in keywords:
+                    keyword = keyword.lower()
+                    if keyword not in keywords_dict:
+                        keywords_dict[keyword] = self.keyword_index
+                        self.keyword_index += 1
+                    keyword_indices_for_song.append(keywords_dict[keyword])
+                if keyword_indices_for_song:
+                    self.data_dict[filepath] = keyword_indices_for_song
         # Count the occurrences of each keyword
         logger.info("Count the occurrences per keyword...")
         total_multi_hot_vector = np.zeros(self.keyword_index, dtype=int)

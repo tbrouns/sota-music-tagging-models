@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
-from attention_modules import (BertConfig, BertEmbeddings, BertEncoder,
+from .attention_modules import (BertConfig, BertEmbeddings, BertEncoder,
                                BertPooler, PositionalEncoding)
-from modules import (Conv_1d, Conv_2d, Conv_H, Conv_V, HarmonicSTFT, Res_2d,
+from .modules import (Conv_1d, Conv_2d, Conv_H, Conv_V, HarmonicSTFT, Res_2d,
                      Res_2d_mp, ResSE_1d)
 from torch.autograd import Variable
 
