@@ -1,24 +1,24 @@
 import glob
+import json
 import os
+import random
 
 import librosa
 import numpy as np
-from tqdm import tqdm
-import random
-import json
-
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
-from prosaic_common.utils.utils_data import get_basename_no_extension, save_pickle
 from prosaic_common.utils.logger import logger
-
+from prosaic_common.utils.utils_data import (get_basename_no_extension,
+                                             save_pickle)
+from tqdm import tqdm
 
 # Create song list, add keywords, shuffle, do train/val/test split
 
 # Run from prosaic-research root:
 #
 #     python -m third_party.sota_music_tagging_models.preprocessing.bmg_read
+
 
 class Processor:
     def __init__(self):
@@ -78,9 +78,9 @@ class Processor:
         logger.info("Do train/val/test split...")
         filepath_list = list(self.data_dict.keys())
         random.shuffle(filepath_list)
-        test_file_list = filepath_list[:self.test_size]
-        val_file_list = filepath_list[-self.val_size:]
-        train_file_list = filepath_list[self.test_size:-self.val_size]
+        test_file_list = filepath_list[: self.test_size]
+        val_file_list = filepath_list[-self.val_size :]
+        train_file_list = filepath_list[self.test_size : -self.val_size]
         self.save_split(test_file_list, split="test")
         self.save_split(val_file_list, split="val")
         self.save_split(train_file_list, split="train")

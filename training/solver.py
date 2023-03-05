@@ -1,12 +1,10 @@
 # coding: utf-8
+import copy
 import csv
 import datetime
 import os
 import pickle
 import time
-import copy
-
-from .model import FCN, Musicnn, CRNN, SampleCNN, SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res, CNNSA, HarmonicCNN
 
 import numpy as np
 import pandas as pd
@@ -18,6 +16,9 @@ from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
+
+from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
+                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
 
 skip_files = set(
     [
@@ -161,7 +162,7 @@ class Solver(object):
         self.lr = config.lr
         self.use_tensorboard = config.use_tensorboard
         self.reconst_loss = self.get_loss_function()
-        
+
         # model path and step size
         self.model_save_path = config.model_save_path
         self.model_load_path = config.model_load_path
@@ -203,13 +204,13 @@ class Solver(object):
         elif self.dataset == "bmg":
             self.num_classes = self.data_loader.dataset.num_keywords
             from .data_loader.bmg_loader import get_audio_loader
+
             self.val_loader = get_audio_loader(
                 batch_size=self.data_loader.batch_size,
                 split="VAL",
                 input_length=self.data_loader.dataset.input_length,
                 num_workers=self.data_loader.num_workers,
             )
-            
 
     def get_model(self):
         if self.model_type == "fcn":
@@ -288,15 +289,14 @@ class Solver(object):
 
                 # Log
                 self.print_log(epoch, ctr, loss, start_t)
-                
+
                 if self.val_step > 0 and ctr % self.val_step == 0:
-                    
                     self.writer.add_scalar("Loss/train", loss.item(), epoch)
 
                     # validation
                     best_metric = self.validation(best_metric, epoch)
                     print(best_metric)
-                    
+
             # schedule optimizer
             current_optimizer, drop_counter = self.opt_schedule(
                 current_optimizer, drop_counter
@@ -358,8 +358,8 @@ class Solver(object):
             npy_path = os.path.join(self.data_path, filename)
         elif self.dataset == "jamendo":
             filename = self.file_dict[fn]["path"]
-            npy_path = os.path.join(self.data_path, filename)            
-            
+            npy_path = os.path.join(self.data_path, filename)
+
         raw = np.load(npy_path, mmap_mode="r")
 
         # split chunk
@@ -382,7 +382,9 @@ class Solver(object):
 
     def print_log(self, epoch, ctr, loss, start_t):
         if (ctr) % self.log_step == 0:
-            log_string = "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s" % (
+            log_string = (
+                "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
+                % (
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     epoch + 1,
                     self.n_epochs,
@@ -391,8 +393,8 @@ class Solver(object):
                     loss.item(),
                     datetime.timedelta(seconds=time.time() - start_t),
                 )
+            )
             print(log_string)
-            
 
     def validation(self, best_metric, epoch):
         roc_auc, pr_auc, loss = self.get_validation_score(epoch)
@@ -413,20 +415,21 @@ class Solver(object):
         est_array.extend(out)
         gt_array.extend(ground_truth)
         return losses, est_array, gt_array
-        
-    
+
     def get_validation_score(self, epoch):
         self.model = self.model.eval()
         est_array = []
         gt_array = []
         losses = []
-        
+
         if self.val_loader is not None:
             for x, y in self.val_loader:
                 ground_truth = y.detach().cpu().numpy().tolist()
                 x = self.to_var(x)
                 y = self.to_var(y)
-                losses, est_array, gt_array = self.get_score(x, y, ground_truth, losses, est_array, gt_array)
+                losses, est_array, gt_array = self.get_score(
+                    x, y, ground_truth, losses, est_array, gt_array
+                )
         else:
             for line in tqdm.tqdm(self.valid_list):
                 if self.dataset == "mtat":
@@ -456,8 +459,10 @@ class Solver(object):
                 y = torch.tensor(
                     [ground_truth.astype("float32") for i in range(self.batch_size)]
                 ).cuda()
-            
-                losses, est_array, gt_array = self.get_score(x, y, ground_truth, losses, est_array, gt_array)
+
+                losses, est_array, gt_array = self.get_score(
+                    x, y, ground_truth, losses, est_array, gt_array
+                )
 
         est_array, gt_array = np.array(est_array), np.array(gt_array)
         loss = np.mean(losses)

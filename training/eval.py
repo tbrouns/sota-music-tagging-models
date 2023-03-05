@@ -7,7 +7,6 @@ import pickle
 import time
 
 import fire
-import .model as Model
 import numpy as np
 import pandas as pd
 import torch
@@ -15,8 +14,11 @@ import torch.nn as nn
 import tqdm
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
-from .solver import skip_files
 from torch.autograd import Variable
+
+from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
+                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
+from .solver import skip_files
 
 TAGS = [
     "genre---downtempo",
