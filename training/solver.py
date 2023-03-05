@@ -294,7 +294,7 @@ class Solver(object):
                     self.writer.add_scalar("Loss/train", loss.item(), epoch)
 
                     # validation
-                    best_metric = self.validation(best_metric, epoch)
+                    best_metric = self.validation(best_metric, epoch, ctr)
                     print(best_metric)
 
             # schedule optimizer
@@ -396,14 +396,14 @@ class Solver(object):
             )
             print(log_string)
 
-    def validation(self, best_metric, epoch):
+    def validation(self, best_metric, epoch, counter):
         roc_auc, pr_auc, loss = self.get_validation_score(epoch)
         score = 1 - loss
         if score > best_metric:
             best_metric = score
             torch.save(
                 self.model.state_dict(),
-                os.path.join(self.model_save_path, "best_model.pth"),
+                os.path.join(self.model_save_path, f"best_model_{epoch}_{counter}.pth"),
             )
         return best_metric
 
