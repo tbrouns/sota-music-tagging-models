@@ -16,6 +16,9 @@ from prosaic_common.utils.logger import logger
 
 # Create song list, add keywords, shuffle, do train/val/test split
 
+# Run from prosaic-research root:
+#
+#     python -m third_party.sota_music_tagging_models.preprocessing.bmg_read
 
 class Processor:
     def __init__(self):
@@ -24,9 +27,9 @@ class Processor:
         self.client = BigQuery()
         self.data_dict = {}
         self.keyword_index = 0
-        self.test_size = 5000
-        self.val_size = 5000
-        self.min_keywords = 1000
+        self.test_size = 1000
+        self.val_size = 1000
+        self.min_keywords = 2000
 
     def save_split(self, filepaths, split="train"):
         split_dict = dict((k, self.data_dict[k]) for k in filepaths)
@@ -38,6 +41,7 @@ class Processor:
         keywords_dict = {}
         logger.info("Get the keywords for each song...")
         n_songs = len(tracks["file_path"])
+        data_dict = {}
         for song_index in tqdm(range(n_songs)):
             filepath = tracks["file_path"][song_index]
             bucket_path = os.path.join("harvest-extract", filepath)
@@ -52,11 +56,11 @@ class Processor:
                         self.keyword_index += 1
                     keyword_indices_for_song.append(keywords_dict[keyword])
                 if keyword_indices_for_song:
-                    self.data_dict[filepath] = keyword_indices_for_song
+                    data_dict[filepath] = keyword_indices_for_song
         # Count the occurrences of each keyword
         logger.info("Count the occurrences per keyword...")
         total_multi_hot_vector = np.zeros(self.keyword_index, dtype=int)
-        for filepath, keyword_indices_for_song in self.data_dict.items():
+        for filepath, keyword_indices_for_song in data_dict.items():
             multi_hot_vector = np.zeros(self.keyword_index, dtype=int)
             multi_hot_vector[keyword_indices_for_song] = 1
             total_multi_hot_vector += multi_hot_vector
@@ -64,18 +68,12 @@ class Processor:
         logger.info("Filter out rare keywords...")
         keywords_to_keep = total_multi_hot_vector >= self.min_keywords
         files_to_delete = []
-        for filepath, keyword_indices_for_song in self.data_dict.items():
+        for filepath, keyword_indices_for_song in data_dict.items():
             multi_hot_vector = np.zeros(self.keyword_index, dtype=int)
             multi_hot_vector[keyword_indices_for_song] = 1
             multi_hot_vector = multi_hot_vector[keywords_to_keep]
             if np.any(multi_hot_vector):
                 self.data_dict[filepath] = np.nonzero(multi_hot_vector)[0]
-            else:  # Mark the song for deletion if it doesn't have any common keywords
-                files_to_delete.append(filepath)
-        # Delete the songs marked for deletion
-        for file in files_to_delete:
-            if filepath in self.data_dict:
-                del self.data_dict[filepath]
         # Train/val/test split
         logger.info("Do train/val/test split...")
         filepath_list = list(self.data_dict.keys())

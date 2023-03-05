@@ -4,6 +4,7 @@ import datetime
 import os
 import pickle
 import time
+import copy
 
 from .model import FCN, Musicnn, CRNN, SampleCNN, SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res, CNNSA, HarmonicCNN
 
@@ -147,22 +148,25 @@ def read_file(tsv_file):
 
 
 class Solver(object):
-    def __init__(self, data_loader, config):
+    def __init__(self, data_loader, config, num_classes=50):
         # data loader
         self.data_loader = data_loader
         self.dataset = config.dataset
         self.data_path = config.data_path
         self.input_length = config.input_length
+        self.num_classes = num_classes
 
         # training settings
         self.n_epochs = config.n_epochs
         self.lr = config.lr
         self.use_tensorboard = config.use_tensorboard
-
+        self.reconst_loss = self.get_loss_function()
+        
         # model path and step size
         self.model_save_path = config.model_save_path
         self.model_load_path = config.model_load_path
         self.log_step = config.log_step
+        self.val_step = config.val_step
         self.batch_size = config.batch_size
         self.model_type = config.model_type
 
@@ -174,13 +178,13 @@ class Solver(object):
         self.build_model()
 
         # Tensorboard
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter(log_dir=config.log_dir)
 
     def get_dataset(self):
         if self.dataset == "mtat":
             self.valid_list = np.load("./../split/mtat/valid.npy")
             self.binary = np.load("./../split/mtat/binary.npy")
-        if self.dataset == "msd":
+        elif self.dataset == "msd":
             train_file = os.path.join("./../split/msd", "filtered_list_train.cP")
             train_list = pickle.load(open(train_file, "rb"), encoding="bytes")
             val_set = train_list[201680:]
@@ -189,33 +193,43 @@ class Solver(object):
             ]
             id2tag_file = os.path.join("./../split/msd", "msd_id_to_tag_vector.cP")
             self.id2tag = pickle.load(open(id2tag_file, "rb"), encoding="bytes")
-        if self.dataset == "jamendo":
+        elif self.dataset == "jamendo":
             train_file = os.path.join(
                 "./../split/mtg-jamendo", "autotagging_top50tags-validation.tsv"
             )
             self.file_dict = read_file(train_file)
             self.valid_list = list(read_file(train_file).keys())
             self.mlb = LabelBinarizer().fit(TAGS)
+        elif self.dataset == "bmg":
+            self.num_classes = self.data_loader.dataset.num_keywords
+            from .data_loader.bmg_loader import get_audio_loader
+            self.val_loader = get_audio_loader(
+                batch_size=self.data_loader.batch_size,
+                split="VAL",
+                input_length=self.data_loader.dataset.input_length,
+                num_workers=self.data_loader.num_workers,
+            )
+            
 
     def get_model(self):
         if self.model_type == "fcn":
-            return FCN()
+            return FCN(n_class=self.num_classes)
         elif self.model_type == "musicnn":
-            return Musicnn(dataset=self.dataset)
+            return Musicnn(dataset=self.dataset, n_class=self.num_classes)
         elif self.model_type == "crnn":
-            return CRNN()
+            return CRNN(n_class=self.num_classes)
         elif self.model_type == "sample":
-            return SampleCNN()
+            return SampleCNN(n_class=self.num_classes)
         elif self.model_type == "se":
-            return SampleCNNSE()
+            return SampleCNNSE(n_class=self.num_classes)
         elif self.model_type == "short":
-            return ShortChunkCNN()
+            return ShortChunkCNN(n_class=self.num_classes)
         elif self.model_type == "short_res":
-            return ShortChunkCNN_Res()
+            return ShortChunkCNN_Res(n_class=self.num_classes)
         elif self.model_type == "attention":
-            return CNNSA()
+            return CNNSA(n_class=self.num_classes)
         elif self.model_type == "hcnn":
-            return HarmonicCNN()
+            return HarmonicCNN(n_class=self.num_classes)
 
     def build_model(self):
         # model
@@ -226,7 +240,7 @@ class Solver(object):
             self.model.cuda()
 
         # load pretrained model
-        if len(self.model_load_path) > 1:
+        if os.path.isfile(self.model_load_path):
             self.load(self.model_load_path)
 
         # optimizers
@@ -258,11 +272,9 @@ class Solver(object):
 
         # Iterate
         for epoch in range(self.n_epochs):
-            ctr = 0
             drop_counter += 1
             self.model = self.model.train()
-            for x, y in self.data_loader:
-                ctr += 1
+            for ctr, (x, y) in enumerate(self.data_loader):
                 # Forward
                 x = self.to_var(x)
                 y = self.to_var(y)
@@ -276,11 +288,15 @@ class Solver(object):
 
                 # Log
                 self.print_log(epoch, ctr, loss, start_t)
-            self.writer.add_scalar("Loss/train", loss.item(), epoch)
+                
+                if self.val_step > 0 and ctr % self.val_step == 0:
+                    
+                    self.writer.add_scalar("Loss/train", loss.item(), epoch)
 
-            # validation
-            best_metric = self.validation(best_metric, epoch)
-
+                    # validation
+                    best_metric = self.validation(best_metric, epoch)
+                    print(best_metric)
+                    
             # schedule optimizer
             current_optimizer, drop_counter = self.opt_schedule(
                 current_optimizer, drop_counter
@@ -342,7 +358,8 @@ class Solver(object):
             npy_path = os.path.join(self.data_path, filename)
         elif self.dataset == "jamendo":
             filename = self.file_dict[fn]["path"]
-            npy_path = os.path.join(self.data_path, filename)
+            npy_path = os.path.join(self.data_path, filename)            
+            
         raw = np.load(npy_path, mmap_mode="r")
 
         # split chunk
@@ -353,7 +370,10 @@ class Solver(object):
             x[i] = torch.Tensor(raw[i * hop : i * hop + self.input_length]).unsqueeze(0)
         return x
 
-    def get_auc(self, est_array, gt_array):
+    def get_auc(self, est_array, gt_array, min_samples=5):
+        keep = np.sum(gt_array, axis=0) >= min_samples
+        gt_array = gt_array[:, keep]
+        est_array = est_array[:, keep]
         roc_aucs = metrics.roc_auc_score(gt_array, est_array, average="macro")
         pr_aucs = metrics.average_precision_score(gt_array, est_array, average="macro")
         print("roc_auc: %.4f" % roc_aucs)
@@ -362,9 +382,7 @@ class Solver(object):
 
     def print_log(self, epoch, ctr, loss, start_t):
         if (ctr) % self.log_step == 0:
-            print(
-                "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
-                % (
+            log_string = "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s" % (
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     epoch + 1,
                     self.n_epochs,
@@ -373,13 +391,13 @@ class Solver(object):
                     loss.item(),
                     datetime.timedelta(seconds=time.time() - start_t),
                 )
-            )
+            print(log_string)
+            
 
     def validation(self, best_metric, epoch):
         roc_auc, pr_auc, loss = self.get_validation_score(epoch)
         score = 1 - loss
         if score > best_metric:
-            print("best model!")
             best_metric = score
             torch.save(
                 self.model.state_dict(),
@@ -387,52 +405,59 @@ class Solver(object):
             )
         return best_metric
 
+    def get_score(self, x, y, ground_truth, losses, est_array, gt_array):
+        out = self.model(x)
+        loss = self.reconst_loss(out, y)
+        losses.append(float(loss.data))
+        out = out.detach().cpu().numpy().tolist()
+        est_array.extend(out)
+        gt_array.extend(ground_truth)
+        return losses, est_array, gt_array
+        
+    
     def get_validation_score(self, epoch):
         self.model = self.model.eval()
         est_array = []
         gt_array = []
         losses = []
-        reconst_loss = self.get_loss_function()
-        index = 0
-        for line in tqdm.tqdm(self.valid_list):
-            if self.dataset == "mtat":
-                ix, fn = line.split("\t")
-            elif self.dataset == "msd":
-                fn = line
-                if fn.decode() in skip_files:
-                    continue
-            elif self.dataset == "jamendo":
-                fn = line
+        
+        if self.val_loader is not None:
+            for x, y in self.val_loader:
+                ground_truth = y.detach().cpu().numpy().tolist()
+                x = self.to_var(x)
+                y = self.to_var(y)
+                losses, est_array, gt_array = self.get_score(x, y, ground_truth, losses, est_array, gt_array)
+        else:
+            for line in tqdm.tqdm(self.valid_list):
+                if self.dataset == "mtat":
+                    ix, fn = line.split("\t")
+                elif self.dataset == "msd":
+                    fn = line
+                    if fn.decode() in skip_files:
+                        continue
+                elif self.dataset == "jamendo":
+                    fn = line
 
-            # load and split
-            x = self.get_tensor(fn)
+                # load and split
+                x = self.get_tensor(fn)
 
-            # ground truth
-            if self.dataset == "mtat":
-                ground_truth = self.binary[int(ix)]
-            elif self.dataset == "msd":
-                ground_truth = self.id2tag[fn].flatten()
-            elif self.dataset == "jamendo":
-                ground_truth = np.sum(
-                    self.mlb.transform(self.file_dict[fn]["tags"]), axis=0
-                )
+                # ground truth
+                if self.dataset == "mtat":
+                    ground_truth = self.binary[int(ix)]
+                elif self.dataset == "msd":
+                    ground_truth = self.id2tag[fn].flatten()
+                elif self.dataset == "jamendo":
+                    ground_truth = np.sum(
+                        self.mlb.transform(self.file_dict[fn]["tags"]), axis=0
+                    )
 
-            # forward
-            x = self.to_var(x)
-            y = torch.tensor(
-                [ground_truth.astype("float32") for i in range(self.batch_size)]
-            ).cuda()
-            out = self.model(x)
-            loss = reconst_loss(out, y)
-            losses.append(float(loss.data))
-            out = out.detach().cpu()
-
-            # estimate
-            estimated = np.array(out).mean(axis=0)
-            est_array.append(estimated)
-
-            gt_array.append(ground_truth)
-            index += 1
+                # forward
+                x = self.to_var(x)
+                y = torch.tensor(
+                    [ground_truth.astype("float32") for i in range(self.batch_size)]
+                ).cuda()
+            
+                losses, est_array, gt_array = self.get_score(x, y, ground_truth, losses, est_array, gt_array)
 
         est_array, gt_array = np.array(est_array), np.array(gt_array)
         loss = np.mean(losses)
