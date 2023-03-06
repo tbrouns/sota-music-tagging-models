@@ -44,6 +44,7 @@ class AudioFolder(data.Dataset):
         save_path = os.path.join(self.mp3_dir, filename)
         # TODO: figure out whether this can be done without saving the file to disk
         self.bucket.download_to_file(load_path=load_path, save_path=save_path)
+        y_labels = np.zeros(self.num_keywords, dtype=int)
         try:
             x, sr = librosa.load(save_path, sr=self.fs)
         except:
@@ -62,8 +63,10 @@ class AudioFolder(data.Dataset):
             x_audio = np.array(x[random_idx : random_idx + self.input_length])
             keyword_indices = self.file_dict[file_path]
             # Get the tag labels
-            y_labels = np.zeros(self.num_keywords, dtype=int)
             y_labels[keyword_indices] = 1
+        else:
+            # Return random signal
+            x_audio = np.random.uniform(-1.0, 1.0, self.input_length)
         return x_audio.astype("float32"), y_labels.astype("float32")
 
     def __len__(self):
