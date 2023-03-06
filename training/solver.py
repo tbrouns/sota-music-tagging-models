@@ -245,8 +245,9 @@ class Solver(object):
         if os.path.isfile(self.model_load_path):
             self.load(self.model_load_path)
             basename = os.path.splitext(self.model_load_path)[0]
-            self.iteration_start = basename.split("_")[-1]
+            self.iteration_start = int(basename.split("_")[-1])
         else:
+            print(f"Pre-trained model not found: {self.model_load_path}")
 
         # optimizers
         self.optimizer = torch.optim.Adam(
