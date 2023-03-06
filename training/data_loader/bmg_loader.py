@@ -68,7 +68,7 @@ class AudioFolder(data.Dataset):
     def get_songlist(self):
         pkl_path = os.path.join(self.cache_dir, f"bmg_{self.split.lower()}.pkl")
         if os.path.isfile(pkl_path):
-            self.file_dict = load_pickle(os.path.join(self.cache_dir, pkl_path))
+            self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
         else:
             raise f"Pickle path does not exist: {pkl_path}"
