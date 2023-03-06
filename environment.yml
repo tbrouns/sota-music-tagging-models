@@ -136,6 +136,7 @@ dependencies:
     - llvmlite==0.39.1
     - markdown==3.4.1
     - markupsafe==2.1.2
+    - miniaudio==1.55
     - oauthlib==3.2.2
     - packaging==21.3
     - pandas==1.5.3

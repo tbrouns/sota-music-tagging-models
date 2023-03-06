@@ -20,6 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
                     SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
 
+
 skip_files = set(
     [
         "TRAIISZ128F42684BB",
@@ -243,6 +244,7 @@ class Solver(object):
 
         # load pretrained model
         if os.path.isfile(self.model_load_path):
+            print(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
             basename = os.path.splitext(self.model_load_path)[0]
             self.iteration_start = int(basename.split("_")[-1])
@@ -281,6 +283,7 @@ class Solver(object):
         for epoch in range(self.n_epochs):
             # drop_counter += 1
             self.model = self.model.train()
+            cumulative_loss = 0.0
             for ctr, (x, y) in enumerate(self.data_loader):
                 
                 iteration = self.iteration_start + epoch * n_samples + ctr
@@ -297,14 +300,18 @@ class Solver(object):
                 self.optimizer.step()
 
                 # Log
-                self.print_log(epoch, ctr, loss, start_t)
-
-                if iteration > 0 and ctr % self.val_step == 0:
-                    self.writer.add_scalar("Loss/train", loss.item(), iteration)
-
-                    # validation
-                    best_metric = self.validation(best_metric, iteration)
-                    print(best_metric)
+                cumulative_loss += loss.item()
+                if ctr > 0 
+                    if ctr % self.log_step == 0:
+                        mean_loss = cumulative_loss / self.log_step
+                        self.print_log(epoch, ctr, mean_loss, start_t)
+                        self.writer.add_scalar("Loss/train", mean_loss, iteration)
+                        cumulative_loss = 0.0
+                    if ctr % self.val_step == 0:
+                        # validation
+                        print("Running validation ...")
+                        best_metric = self.validation(best_metric, iteration)
+                        print(best_metric)
 
             # # schedule optimizer
             # current_optimizer, drop_counter = self.opt_schedule(
@@ -390,20 +397,19 @@ class Solver(object):
         return roc_aucs, pr_aucs
 
     def print_log(self, epoch, ctr, loss, start_t):
-        if (ctr) % self.log_step == 0:
-            log_string = (
-                "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
-                % (
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    epoch + 1,
-                    self.n_epochs,
-                    ctr,
-                    len(self.data_loader),
-                    loss.item(),
-                    datetime.timedelta(seconds=time.time() - start_t),
-                )
+        log_string = (
+            "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
+            % (
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                epoch + 1,
+                self.n_epochs,
+                ctr,
+                len(self.data_loader),
+                loss,
+                datetime.timedelta(seconds=time.time() - start_t),
             )
-            print(log_string)
+        )
+        print(log_string)
 
     def validation(self, best_metric, iteration):
         roc_auc, pr_auc, loss = self.get_validation_score(iteration)

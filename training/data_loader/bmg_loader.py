@@ -1,23 +1,15 @@
-# Get `tracks` table from BigQuery
-# Extract keywords from ["record"]["keywords"] field
-# Put this in dataloader class attributes, create song list
-# Save keywords and song path
-# Filter out songs that don't have any keywords etc.
-# Shuffle the list ...
-
-
-# get item for data loader:
-# Get batch of indices for song list
-# Download the batch of song, load with librosa
-
 import os
-
+import requests
 import librosa
+import soundfile as sf
+from miniaudio import SampleFormat, decode
 import numpy as np
 from prosaic_common.config import get_cache_dir
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_data import load_pickle
 from torch.utils import data
+import torchaudio
+import torchaudio.transforms as T
 
 
 class AudioFolder(data.Dataset):
@@ -42,14 +34,15 @@ class AudioFolder(data.Dataset):
         ext = os.path.splitext(file_path)[1]
         filename = f"{str(batch_index).zfill(3)}{ext}"
         save_path = os.path.join(self.mp3_dir, filename)
-        # TODO: figure out whether this can be done without saving the file to disk
-        self.bucket.download_to_file(load_path=load_path, save_path=save_path)
-        y_labels = np.zeros(self.num_keywords, dtype=int)
+        audio_bytes = self.bucket.download_to_bytes(load_path=load_path)
         try:
-            x, sr = librosa.load(save_path, sr=self.fs)
-        except:
+            x = decode(audio_bytes, nchannels=1, sample_rate=self.fs, output_format=SampleFormat.FLOAT32)
+            x = np.array(x.samples)
+        except Exception as e:
             x = None
+            print(e)
             print(f"Could not load: {load_path}!")
+        y_labels = np.zeros(self.num_keywords, dtype=int)
         if x is not None:
             audio_len = len(x)
             if audio_len < self.input_length:
