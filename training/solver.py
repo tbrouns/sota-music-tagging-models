@@ -156,7 +156,8 @@ class Solver(object):
         self.data_path = config.data_path
         self.input_length = config.input_length
         self.num_classes = num_classes
-
+        self.iteration_start = 0
+        
         # training settings
         self.n_epochs = config.n_epochs
         self.lr = config.lr
@@ -243,6 +244,9 @@ class Solver(object):
         # load pretrained model
         if os.path.isfile(self.model_load_path):
             self.load(self.model_load_path)
+            basename = os.path.splitext(self.model_load_path)[0]
+            self.iteration_start = basename.split("_")[-1]
+        else:
 
         # optimizers
         self.optimizer = torch.optim.Adam(
@@ -269,13 +273,17 @@ class Solver(object):
         current_optimizer = "adam"
         reconst_loss = self.get_loss_function()
         best_metric = 0
-        drop_counter = 0
-
+        # drop_counter = 0
+        n_samples = len(self.data_loader)
+        
         # Iterate
         for epoch in range(self.n_epochs):
-            drop_counter += 1
+            # drop_counter += 1
             self.model = self.model.train()
             for ctr, (x, y) in enumerate(self.data_loader):
+                
+                iteration = self.iteration_start + epoch * n_samples + ctr
+                
                 # Forward
                 x = self.to_var(x)
                 y = self.to_var(y)
@@ -290,17 +298,17 @@ class Solver(object):
                 # Log
                 self.print_log(epoch, ctr, loss, start_t)
 
-                if self.val_step > 0 and ctr % self.val_step == 0:
-                    self.writer.add_scalar("Loss/train", loss.item(), epoch)
+                if iteration > 0 and ctr % self.val_step == 0:
+                    self.writer.add_scalar("Loss/train", loss.item(), iteration)
 
                     # validation
-                    best_metric = self.validation(best_metric, epoch, ctr)
+                    best_metric = self.validation(best_metric, iteration)
                     print(best_metric)
 
-            # schedule optimizer
-            current_optimizer, drop_counter = self.opt_schedule(
-                current_optimizer, drop_counter
-            )
+            # # schedule optimizer
+            # current_optimizer, drop_counter = self.opt_schedule(
+            #     current_optimizer, drop_counter
+            # )
 
         print(
             "[%s] Train finished. Elapsed: %s"
@@ -313,7 +321,7 @@ class Solver(object):
     def opt_schedule(self, current_optimizer, drop_counter):
         # adam to sgd
         if current_optimizer == "adam" and drop_counter == 80:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(),
                 0.001,
@@ -326,7 +334,7 @@ class Solver(object):
             print("sgd 1e-3")
         # first drop
         if current_optimizer == "sgd_1" and drop_counter == 20:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             for pg in self.optimizer.param_groups:
                 pg["lr"] = 0.0001
             current_optimizer = "sgd_2"
@@ -334,7 +342,7 @@ class Solver(object):
             print("sgd 1e-4")
         # second drop
         if current_optimizer == "sgd_2" and drop_counter == 20:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             for pg in self.optimizer.param_groups:
                 pg["lr"] = 0.00001
             current_optimizer = "sgd_3"
@@ -396,14 +404,14 @@ class Solver(object):
             )
             print(log_string)
 
-    def validation(self, best_metric, epoch, counter):
-        roc_auc, pr_auc, loss = self.get_validation_score(epoch)
+    def validation(self, best_metric, iteration):
+        roc_auc, pr_auc, loss = self.get_validation_score(iteration)
         score = 1 - loss
         if score > best_metric:
             best_metric = score
             torch.save(
                 self.model.state_dict(),
-                os.path.join(self.model_save_path, f"best_model_{epoch}_{counter}.pth"),
+                os.path.join(self.model_save_path, f"best_model_{iteration}.pth"),
             )
         return best_metric
 
@@ -416,7 +424,7 @@ class Solver(object):
         gt_array.extend(ground_truth)
         return losses, est_array, gt_array
 
-    def get_validation_score(self, epoch):
+    def get_validation_score(self, iteration):
         self.model = self.model.eval()
         est_array = []
         gt_array = []
@@ -469,7 +477,7 @@ class Solver(object):
         print("loss: %.4f" % loss)
 
         roc_auc, pr_auc = self.get_auc(est_array, gt_array)
-        self.writer.add_scalar("Loss/valid", loss, epoch)
-        self.writer.add_scalar("AUC/ROC", roc_auc, epoch)
-        self.writer.add_scalar("AUC/PR", pr_auc, epoch)
+        self.writer.add_scalar("Loss/valid", loss, iteration)
+        self.writer.add_scalar("AUC/ROC", roc_auc, iteration)
+        self.writer.add_scalar("AUC/PR", pr_auc, iteration)
         return roc_auc, pr_auc, loss

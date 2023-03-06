@@ -44,21 +44,26 @@ class AudioFolder(data.Dataset):
         save_path = os.path.join(self.mp3_dir, filename)
         # TODO: figure out whether this can be done without saving the file to disk
         self.bucket.download_to_file(load_path=load_path, save_path=save_path)
-        x, sr = librosa.load(save_path, sr=self.fs)
-        audio_len = len(x)
-        if audio_len < self.input_length:
-            n_tiles = int(np.ceil(self.input_length / audio_len))
-            x = np.tile(x, n_tiles)
+        try:
+            x, sr = librosa.load(save_path, sr=self.fs)
+        except:
+            x = None
+            print(f"Could not load: {load_path}!")
+        if x is not None:
             audio_len = len(x)
-        # Get a random subsection of the song based on the model input length
-        random_idx = int(
-            np.floor(np.random.random(1) * (audio_len - self.input_length))
-        )
-        x_audio = np.array(x[random_idx : random_idx + self.input_length])
-        keyword_indices = self.file_dict[file_path]
-        # Get the tag labels
-        y_labels = np.zeros(self.num_keywords, dtype=int)
-        y_labels[keyword_indices] = 1
+            if audio_len < self.input_length:
+                n_tiles = int(np.ceil(self.input_length / audio_len))
+                x = np.tile(x, n_tiles)
+                audio_len = len(x)
+            # Get a random subsection of the song based on the model input length
+            random_idx = int(
+                np.floor(np.random.random(1) * (audio_len - self.input_length))
+            )
+            x_audio = np.array(x[random_idx : random_idx + self.input_length])
+            keyword_indices = self.file_dict[file_path]
+            # Get the tag labels
+            y_labels = np.zeros(self.num_keywords, dtype=int)
+            y_labels[keyword_indices] = 1
         return x_audio.astype("float32"), y_labels.astype("float32")
 
     def __len__(self):
