@@ -20,7 +20,6 @@ from torch.utils.tensorboard import SummaryWriter
 from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
                     SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
 
-
 skip_files = set(
     [
         "TRAIISZ128F42684BB",

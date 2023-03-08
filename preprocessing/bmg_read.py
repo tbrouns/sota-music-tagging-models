@@ -1,19 +1,20 @@
 import glob
 import json
+import logging
 import os
 import random
 
 import librosa
 import numpy as np
+from tqdm import tqdm
+
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
-from prosaic_common.utils.utils_data import (get_basename_no_extension, load_pickle,
-                                             save_pickle)
-from tqdm import tqdm
+from prosaic_common.utils.utils_data import (get_basename_no_extension,
+                                             load_pickle, save_pickle)
 
-import logging
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
@@ -30,14 +31,19 @@ Run from prosaic-research root:
 
 """
 
+
 class Processor:
     def __init__(self):
         self.bucket = GCP_BUCKETS["songs"]
         self.cache_dir = os.path.join(get_cache_dir(), "bmg")
         self.client = BigQuery()
-        #TODO: add these PKL filenames to config.ini in prosaic_common config
-        self.keyword_mapping = load_pickle(os.path.join(self.cache_dir, "bmg_keywords_mapped.pkl"))
-        self.keyword_cleaning = load_pickle(os.path.join(self.cache_dir, "bmg_keywords_cleaned.pkl"))
+        # TODO: add these PKL filenames to config.ini in prosaic_common config
+        self.keyword_mapping = load_pickle(
+            os.path.join(self.cache_dir, "bmg_keywords_mapped.pkl")
+        )
+        self.keyword_cleaning = load_pickle(
+            os.path.join(self.cache_dir, "bmg_keywords_cleaned.pkl")
+        )
         self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
         self.missing_set_path = os.path.join(self.cache_dir, "bmg_missing_files.pkl")
         if os.path.isfile(self.missing_set_path):
@@ -49,7 +55,7 @@ class Processor:
         self.data_dict = {}
         self.test_size = 2000
         self.val_size = 2000
-        
+
     def save_split(self, filepaths, split="train"):
         split_dict = dict((k, self.data_dict[k]) for k in filepaths)
         save_path = os.path.join(self.cache_dir, f"bmg_{split}.pkl")
@@ -69,14 +75,17 @@ class Processor:
             bucket_path = os.path.join("harvest-extract", filepath)
             tag_indices = []
             tag_scores = []
-            if (not self.create_missing_set and filepath not in self.missing_set) or (self.create_missing_set and self.bucket.check_if_file_exists(bucket_path)):
+            if (not self.create_missing_set and filepath not in self.missing_set) or (
+                self.create_missing_set
+                and self.bucket.check_if_file_exists(bucket_path)
+            ):
                 # Get the raw free-text keywords
                 record = tracks["record"][song_index]
                 keywords_raw = json.loads(record)["track"]["keywords"]
                 keyword_indices_for_song = []
                 keywords_dict = {}
                 for kw_raw in keywords_raw:
-                    # First clean the raw keywords 
+                    # First clean the raw keywords
                     if kw_raw in self.keyword_cleaning:
                         keywords_cleaned = self.keyword_cleaning[kw_raw]
                         # Then map the clean keywords to one of the labels in the BMG taxonomy
@@ -84,15 +93,21 @@ class Processor:
                             if kw_cleaned in self.keyword_mapping:
                                 keywords_mapped = self.keyword_mapping[kw_cleaned]
                                 for kw, score in keywords_mapped.items():
-                                    if kw not in keywords_dict or score >= keywords_dict[kw]:
+                                    if (
+                                        kw not in keywords_dict
+                                        or score >= keywords_dict[kw]
+                                    ):
                                         keywords_dict[kw] = score
-                # Save the indices and corresponding scores 
+                # Save the indices and corresponding scores
                 for kw, score in keywords_dict.items():
                     index = np.nonzero(bmg_labels == kw)[0][0]
                     tag_indices.append(index)
                     tag_scores.append(score)
                 if tag_indices:
-                    self.data_dict[filepath] = (np.array(tag_indices), np.array(tag_scores))
+                    self.data_dict[filepath] = (
+                        np.array(tag_indices),
+                        np.array(tag_scores),
+                    )
             elif self.create_missing_set:
                 self.missing_set.add(filepath)
         # Train/val/test split

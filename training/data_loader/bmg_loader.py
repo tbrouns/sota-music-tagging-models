@@ -1,16 +1,18 @@
 import os
-import requests
+
 import librosa
-import soundfile as sf
-from miniaudio import SampleFormat, decode
 import numpy as np
+import requests
+import soundfile as sf
+import torchaudio
+import torchaudio.transforms as T
+from miniaudio import SampleFormat, decode
+from torch.utils import data
+
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_data import load_pickle
-from torch.utils import data
-import torchaudio
-import torchaudio.transforms as T
 
 
 class AudioFolder(data.Dataset):
@@ -38,7 +40,12 @@ class AudioFolder(data.Dataset):
         save_path = os.path.join(self.mp3_dir, filename)
         audio_bytes = self.bucket.download_to_bytes(load_path=load_path)
         try:
-            x = decode(audio_bytes, nchannels=1, sample_rate=self.fs, output_format=SampleFormat.FLOAT32)
+            x = decode(
+                audio_bytes,
+                nchannels=1,
+                sample_rate=self.fs,
+                output_format=SampleFormat.FLOAT32,
+            )
             x = np.array(x.samples)
         except Exception as e:
             x = None
