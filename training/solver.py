@@ -300,7 +300,7 @@ class Solver(object):
 
                 # Log
                 cumulative_loss += loss.item()
-                if ctr > 0 
+                if ctr > 0:
                     if ctr % self.log_step == 0:
                         mean_loss = cumulative_loss / self.log_step
                         self.print_log(epoch, ctr, mean_loss, start_t)
