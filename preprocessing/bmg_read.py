@@ -8,7 +8,7 @@ import librosa
 import numpy as np
 from tqdm import tqdm
 
-from prosaic_common.config import get_cache_dir
+from prosaic_common.config import get_cache_dir, get_config
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
@@ -33,19 +33,22 @@ Run from prosaic-research root:
 
 
 class Processor:
-    def __init__(self):
+    def __init__(self, config_path=None):
+        if config_path is None:
+            config_path = "music_tagging/config.ini"
+        self.cfg = get_config(config_path=config_path)["match_tags"]
         self.bucket = GCP_BUCKETS["songs"]
         self.cache_dir = os.path.join(get_cache_dir(), "bmg")
         self.client = BigQuery()
         # TODO: add these PKL filenames to config.ini in prosaic_common config
         self.keyword_mapping = load_pickle(
-            os.path.join(self.cache_dir, "bmg_keywords_mapped.pkl")
+            os.path.join(self.cache_dir, self.cfg["keyword_dict_mapped"])
         )
         self.keyword_cleaning = load_pickle(
-            os.path.join(self.cache_dir, "bmg_keywords_cleaned.pkl")
+            os.path.join(self.cache_dir, self.cfg["keyword_dict_cleaned"])
         )
         self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
-        self.missing_set_path = os.path.join(self.cache_dir, "bmg_missing_files.pkl")
+        self.missing_set_path = os.path.join(self.cache_dir, self.cfg["missing_files"])
         if os.path.isfile(self.missing_set_path):
             self.missing_set = load_pickle(self.missing_set_path)
             self.create_missing_set = False
