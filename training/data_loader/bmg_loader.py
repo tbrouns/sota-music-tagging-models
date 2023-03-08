@@ -5,6 +5,7 @@ import soundfile as sf
 from miniaudio import SampleFormat, decode
 import numpy as np
 from prosaic_common.config import get_cache_dir
+from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_data import load_pickle
 from torch.utils import data
@@ -15,12 +16,13 @@ import torchaudio.transforms as T
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
         self.bucket = GCP_BUCKETS["songs"]
+        self.client = BigQuery()
         self.cache_dir = os.path.join(get_cache_dir(), "bmg")
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.keywords = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
-        self.num_keywords = len(self.keywords)
+        self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
+        self.num_keywords = self.bmg_taxonomy.shape[0]
         self.batch_size = batch_size
         self.split = split
         self.input_length = input_length
@@ -54,9 +56,9 @@ class AudioFolder(data.Dataset):
                 np.floor(np.random.random(1) * (audio_len - self.input_length))
             )
             x_audio = np.array(x[random_idx : random_idx + self.input_length])
-            keyword_indices = self.file_dict[file_path]
+            tag_indices, tag_scores = self.file_dict[file_path]
             # Get the tag labels
-            y_labels[keyword_indices] = 1
+            y_labels[tag_indices] = tag_scores
         else:
             # Return random signal
             x_audio = np.random.uniform(-1.0, 1.0, self.input_length)
