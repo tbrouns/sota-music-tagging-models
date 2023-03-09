@@ -387,6 +387,7 @@ class Solver(object):
 
     def get_auc(self, est_array, gt_array, min_samples=5):
         keep = np.sum(gt_array, axis=0) >= min_samples
+        
         gt_array = gt_array[:, keep]
         est_array = est_array[:, keep]
         roc_aucs = metrics.roc_auc_score(gt_array, est_array, average="macro")

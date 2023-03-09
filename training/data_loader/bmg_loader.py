@@ -51,7 +51,7 @@ class AudioFolder(data.Dataset):
             x = None
             print(e)
             print(f"Could not load: {load_path}!")
-        y_labels = np.zeros(self.num_keywords, dtype=int)
+        y_labels = np.zeros(self.num_keywords, dtype=float)
         if x is not None:
             audio_len = len(x)
             if audio_len < self.input_length:
