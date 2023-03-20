@@ -157,6 +157,7 @@ class Solver(object):
         self.input_length = config.input_length
         self.num_classes = num_classes
         self.iteration_start = 0
+        self.threshold = config.threshold
         
         # training settings
         self.n_epochs = config.n_epochs
@@ -165,7 +166,7 @@ class Solver(object):
         self.reconst_loss = self.get_loss_function()
 
         # model path and step size
-        self.model_save_path = config.model_save_path
+        self.model_save_dir = config.model_save_dir
         self.model_load_path = config.model_load_path
         self.log_step = config.log_step
         self.val_step = config.val_step
@@ -281,10 +282,10 @@ class Solver(object):
         # Iterate
         for epoch in range(self.n_epochs):
             # drop_counter += 1
-            self.model = self.model.train()
             cumulative_loss = 0.0
             for ctr, (x, y) in enumerate(self.data_loader):
                 
+                ctr = ctr + 1
                 iteration = self.iteration_start + epoch * n_samples + ctr
                 
                 # Forward
@@ -300,17 +301,16 @@ class Solver(object):
 
                 # Log
                 cumulative_loss += loss.item()
-                if ctr > 0:
-                    if ctr % self.log_step == 0:
-                        mean_loss = cumulative_loss / self.log_step
-                        self.print_log(epoch, ctr, mean_loss, start_t)
-                        self.writer.add_scalar("Loss/train", mean_loss, iteration)
-                        cumulative_loss = 0.0
-                    if ctr % self.val_step == 0:
-                        # validation
-                        print("Running validation ...")
-                        best_metric = self.validation(best_metric, iteration)
-                        print(best_metric)
+                if ctr % self.log_step == 0:
+                    mean_loss = cumulative_loss / self.log_step
+                    self.print_log(epoch, ctr, mean_loss, start_t)
+                    self.writer.add_scalar("Loss/train", mean_loss, iteration)
+                    cumulative_loss = 0.0
+                if ctr % self.val_step == 0:
+                    # validation
+                    print("Running validation ...")
+                    best_metric = self.validation(best_metric, iteration)
+                    print("Best metric:", best_metric)
 
             # # schedule optimizer
             # current_optimizer, drop_counter = self.opt_schedule(
@@ -385,18 +385,20 @@ class Solver(object):
             x[i] = torch.Tensor(raw[i * hop : i * hop + self.input_length]).unsqueeze(0)
         return x
 
-    def get_auc(self, est_array, gt_array, min_samples=5):
-        keep = np.sum(gt_array, axis=0) >= min_samples
-        
+    def get_auc(self, est_array, gt_array):
+        gt_array = (gt_array >= self.threshold).astype(int)
+        # Check the number of unique values in the ground-truth
+        # Should have at least one positive and one negative example for each tag
+        keep = np.count_nonzero(np.diff(np.sort(gt_array, axis=0), axis=0), axis=0) >= 1
         gt_array = gt_array[:, keep]
         est_array = est_array[:, keep]
+        # Calculate ROC and MAP
         roc_aucs = metrics.roc_auc_score(gt_array, est_array, average="macro")
         pr_aucs = metrics.average_precision_score(gt_array, est_array, average="macro")
-        print("roc_auc: %.4f" % roc_aucs)
-        print("pr_auc: %.4f" % pr_aucs)
         return roc_aucs, pr_aucs
 
     def print_log(self, epoch, ctr, loss, start_t):
+        n_samples = len(self.data_loader)
         log_string = (
             "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
             % (
@@ -404,7 +406,7 @@ class Solver(object):
                 epoch + 1,
                 self.n_epochs,
                 ctr,
-                len(self.data_loader),
+                n_samples,
                 loss,
                 datetime.timedelta(seconds=time.time() - start_t),
             )
@@ -416,9 +418,10 @@ class Solver(object):
         score = 1 - loss
         if score > best_metric:
             best_metric = score
+            self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}.pth")
             torch.save(
                 self.model.state_dict(),
-                os.path.join(self.model_save_path, f"best_model_{iteration}.pth"),
+                self.model_save_path,
             )
         return best_metric
 
@@ -432,11 +435,10 @@ class Solver(object):
         return losses, est_array, gt_array
 
     def get_validation_score(self, iteration):
-        self.model = self.model.eval()
         est_array = []
         gt_array = []
         losses = []
-
+        self.model.eval()
         if self.val_loader is not None:
             for x, y in self.val_loader:
                 ground_truth = y.detach().cpu().numpy().tolist()
@@ -478,12 +480,13 @@ class Solver(object):
                 losses, est_array, gt_array = self.get_score(
                     x, y, ground_truth, losses, est_array, gt_array
                 )
-
-        est_array, gt_array = np.array(est_array), np.array(gt_array)
+        self.model.train()
         loss = np.mean(losses)
-        print("loss: %.4f" % loss)
-
+        est_array, gt_array = np.array(est_array), np.array(gt_array)
         roc_auc, pr_auc = self.get_auc(est_array, gt_array)
+        print("loss: %.4f" % loss)
+        print("roc_auc: %.4f" % roc_auc)
+        print("pr_auc: %.4f" % pr_auc)
         self.writer.add_scalar("Loss/valid", loss, iteration)
         self.writer.add_scalar("AUC/ROC", roc_auc, iteration)
         self.writer.add_scalar("AUC/PR", pr_auc, iteration)

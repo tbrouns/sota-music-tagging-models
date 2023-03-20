@@ -21,7 +21,7 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 """
 Create song list, add keywords, shuffle, do train/val/test split
 
-Pre-requisite, run:
+Pre-requisite. First run:
 
     prosaic-research/music_tagging/match_tags.ipynb
 
@@ -48,6 +48,9 @@ class Processor:
             os.path.join(self.cache_dir, self.cfg["keyword_dict_cleaned"])
         )
         self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
+        self.bmg_labels = load_pickle(
+            os.path.join(self.cache_dir, "bmg_keywords.pkl")
+        )
         self.missing_set_path = os.path.join(self.cache_dir, self.cfg["missing_files"])
         if os.path.isfile(self.missing_set_path):
             self.missing_set = load_pickle(self.missing_set_path)
@@ -66,8 +69,7 @@ class Processor:
 
     def get_songs_and_keywords(self):
         tracks = self.client.get_df_from_table_name("tracks")
-        bmg_labels = self.bmg_taxonomy["label"].to_numpy()
-        n_bmg_labels = bmg_labels.shape[0]
+        n_bmg_labels = self.bmg_labels.shape[0]
         keywords_dict = {}
         logger.info("Get the keywords for each song...")
         n_songs = len(tracks["file_path"])
@@ -103,7 +105,7 @@ class Processor:
                                         keywords_dict[kw] = score
                 # Save the indices and corresponding scores
                 for kw, score in keywords_dict.items():
-                    index = np.nonzero(bmg_labels == kw)[0][0]
+                    index = np.nonzero(self.bmg_labels == kw)[0][0]
                     tag_indices.append(index)
                     tag_scores.append(score)
                 if tag_indices:

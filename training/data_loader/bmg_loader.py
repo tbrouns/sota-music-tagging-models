@@ -15,6 +15,12 @@ from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_data import load_pickle
 
 
+"""
+Pre-requisite. First run:
+
+    preprocessing/bmg_read.py
+"""
+
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
         self.bucket = GCP_BUCKETS["songs"]
@@ -23,8 +29,10 @@ class AudioFolder(data.Dataset):
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
-        self.num_keywords = self.bmg_taxonomy.shape[0]
+        self.bmg_labels = load_pickle(
+            os.path.join(self.cache_dir, "bmg_keywords.pkl")
+        )
+        self.num_keywords = self.bmg_labels.shape[0]
         self.batch_size = batch_size
         self.split = split
         self.input_length = input_length
@@ -79,27 +87,9 @@ class AudioFolder(data.Dataset):
         if os.path.isfile(pkl_path):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
+            # self.file_list = self.file_list[:12000] # REMOVE!!!
         else:
             raise f"Pickle path does not exist: {pkl_path}"
-
-    def get_paths(self):
-        # Get all the paths to the audio files in the bucket
-        self.files = self.bucket.get_list_of_files(
-            delimiter="/", prefix="harvest-extract/"
-        )
-        self.files = [f for f in self.files if os.path.splitext(f)[1] == ".mp3"]
-
-    def get_npy(self, audio_path):
-        """
-        audio_path: relative path to audio file in bucket
-        """
-        save_path = os.path.join(self.cache_dir, os.path.basename(audio_path))
-        # TODO: figure out whether this can be done without saving the file to disk
-        self.bucket.download_to_file(load_path=audio_path, save_path=save_path)
-        x, sr = librosa.load(save_path, sr=self.fs)
-        os.remove(save_path)
-        return x
-
 
 def get_audio_loader(
     root=None, batch_size=64, split="TRAIN", num_workers=0, input_length=None
