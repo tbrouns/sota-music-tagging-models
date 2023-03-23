@@ -46,8 +46,8 @@ class AudioFolder(data.Dataset):
         ext = os.path.splitext(file_path)[1]
         filename = f"{str(batch_index).zfill(3)}{ext}"
         save_path = os.path.join(self.mp3_dir, filename)
-        audio_bytes = self.bucket.download_to_bytes(load_path=load_path)
         try:
+            audio_bytes = self.bucket.download_to_bytes(load_path=load_path)
             x = decode(
                 audio_bytes,
                 nchannels=1,

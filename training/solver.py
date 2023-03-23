@@ -157,6 +157,7 @@ class Solver(object):
         self.input_length = config.input_length
         self.num_classes = num_classes
         self.iteration_start = 0
+        self.best_metric = 0.0
         self.threshold = config.threshold
         
         # training settings
@@ -247,7 +248,15 @@ class Solver(object):
             print(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
             basename = os.path.splitext(self.model_load_path)[0]
-            self.iteration_start = int(basename.split("_")[-1])
+            self.iteration_start, self.best_metric = basename.split("_")[-2:]
+            if self.iteration_start.isdigit():
+                self.iteration_start = int(self.iteration_start)
+                self.best_metric = float(self.best_metric)
+            else:
+                # Old format
+                # TODO: remove this at some point
+                self.iteration_start = int(self.best_metric)
+                self.best_metric = 0.0
         else:
             print(f"Pre-trained model not found: {self.model_load_path}")
 
@@ -275,7 +284,7 @@ class Solver(object):
         start_t = time.time()
         current_optimizer = "adam"
         reconst_loss = self.get_loss_function()
-        best_metric = 0
+        
         # drop_counter = 0
         n_samples = len(self.data_loader)
         
@@ -303,14 +312,16 @@ class Solver(object):
                 cumulative_loss += loss.item()
                 if ctr % self.log_step == 0:
                     mean_loss = cumulative_loss / self.log_step
-                    self.print_log(epoch, ctr, mean_loss, start_t)
+                    print_epoch = iteration // n_samples
+                    print_ctr = (iteration % n_samples) + 1
+                    self.print_log(print_epoch, print_ctr, mean_loss, start_t)
                     self.writer.add_scalar("Loss/train", mean_loss, iteration)
                     cumulative_loss = 0.0
                 if ctr % self.val_step == 0:
                     # validation
                     print("Running validation ...")
-                    best_metric = self.validation(best_metric, iteration)
-                    print("Best metric:", best_metric)
+                    self.validation(iteration)
+                    print("Best metric:", self.best_metric)
 
             # # schedule optimizer
             # current_optimizer, drop_counter = self.opt_schedule(
@@ -413,17 +424,17 @@ class Solver(object):
         )
         print(log_string)
 
-    def validation(self, best_metric, iteration):
+    def validation(self, iteration):
         roc_auc, pr_auc, loss = self.get_validation_score(iteration)
         score = 1 - loss
-        if score > best_metric:
-            best_metric = score
-            self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}.pth")
+        if score > self.best_metric:
+            self.best_metric = score
+            best_metric_str = "%.3f" % self.best_metric
+            self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}_{best_metric_str}.pth")
             torch.save(
                 self.model.state_dict(),
                 self.model_save_path,
             )
-        return best_metric
 
     def get_score(self, x, y, ground_truth, losses, est_array, gt_array):
         out = self.model(x)
