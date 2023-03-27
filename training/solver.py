@@ -248,15 +248,10 @@ class Solver(object):
             print(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
             basename = os.path.splitext(self.model_load_path)[0]
-            self.iteration_start, self.best_metric = basename.split("_")[-2:]
-            if self.iteration_start.isdigit():
-                self.iteration_start = int(self.iteration_start)
-                self.best_metric = float(self.best_metric)
-            else:
-                # Old format
-                # TODO: remove this at some point
-                self.iteration_start = int(self.best_metric)
-                self.best_metric = 0.0
+            iteration_start, best_metric = basename.split("_")[-2:]
+            if iteration_start.isdigit() and best_metric.isdigit():
+                self.iteration_start = int(iteration_start)
+                self.best_metric = float(best_metric)
         else:
             print(f"Pre-trained model not found: {self.model_load_path}")
 
