@@ -421,9 +421,8 @@ class Solver(object):
 
     def validation(self, iteration):
         roc_auc, pr_auc, loss = self.get_validation_score(iteration)
-        score = 1 - loss
-        if score > self.best_metric:
-            self.best_metric = score
+        if roc_auc > self.best_metric:
+            self.best_metric = roc_auc
             best_metric_str = "%.3f" % self.best_metric
             self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}_{best_metric_str}.pth")
             torch.save(
