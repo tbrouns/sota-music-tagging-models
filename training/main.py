@@ -1,21 +1,23 @@
 import argparse
 import os
 
-from solver import Solver
+from .solver import Solver
 
 
 def main(config):
     # path for models
-    if not os.path.exists(config.model_save_path):
-        os.makedirs(config.model_save_path)
+    if not os.path.exists(config.model_save_dir):
+        os.makedirs(config.model_save_dir)
 
     # import data loader
     if config.dataset == "mtat":
-        from data_loader.mtat_loader import get_audio_loader
+        from .data_loader.mtat_loader import get_audio_loader
     elif config.dataset == "msd":
-        from data_loader.msd_loader import get_audio_loader
+        from .data_loader.msd_loader import get_audio_loader
     elif config.dataset == "jamendo":
-        from data_loader.jamendo_loader import get_audio_loader
+        from .data_loader.jamendo_loader import get_audio_loader
+    elif config.dataset == "bmg":
+        from .data_loader.bmg_loader import get_audio_loader
 
     # audio length
     if config.model_type == "fcn" or config.model_type == "crnn":
@@ -31,13 +33,13 @@ def main(config):
 
     # get data loder
     train_loader = get_audio_loader(
-        config.data_path,
-        config.batch_size,
+        root=config.data_path,
+        batch_size=config.batch_size,
         split="TRAIN",
         input_length=config.input_length,
         num_workers=config.num_workers,
     )
-    solver = Solver(train_loader, config)
+    solver = Solver(data_loader=train_loader, config=config)
     solver.train()
 
 
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--use_tensorboard", type=int, default=1)
-    parser.add_argument("--model_save_path", type=str, default="./../models")
+    parser.add_argument("--model_save_dir", type=str, default="./../models")
     parser.add_argument("--model_load_path", type=str, default=".")
     parser.add_argument("--data_path", type=str, default="./data")
     parser.add_argument("--log_step", type=int, default=20)

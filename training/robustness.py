@@ -15,7 +15,6 @@ import time
 
 import fire
 import librosa
-import model as Model
 import numpy as np
 import pandas as pd
 import soundfile as psf
@@ -24,8 +23,11 @@ import torch.nn as nn
 import tqdm
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
-from solver import skip_files
 from torch.autograd import Variable
+
+from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
+                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
+from .solver import skip_files
 
 TAGS = [
     "genre---downtempo",
@@ -157,31 +159,31 @@ class Predict(object):
     def get_model(self):
         if self.model_type == "fcn":
             self.input_length = 29 * 16000
-            return Model.FCN()
+            return FCN()
         elif self.model_type == "musicnn":
             self.input_length = 3 * 16000
-            return Model.Musicnn(dataset=self.dataset)
+            return Musicnn(dataset=self.dataset)
         elif self.model_type == "crnn":
             self.input_length = 29 * 16000
-            return Model.CRNN()
+            return CRNN()
         elif self.model_type == "sample":
             self.input_length = 59049
-            return Model.SampleCNN()
+            return SampleCNN()
         elif self.model_type == "se":
             self.input_length = 59049
-            return Model.SampleCNNSE()
+            return SampleCNNSE()
         elif self.model_type == "short":
             self.input_length = 59049
-            return Model.ShortChunkCNN()
+            return ShortChunkCNN()
         elif self.model_type == "short_res":
             self.input_length = 59049
-            return Model.ShortChunkCNN_Res()
+            return ShortChunkCNN_Res()
         elif self.model_type == "attention":
             self.input_length = 15 * 16000
-            return Model.CNNSA()
+            return CNNSA()
         elif self.model_type == "hcnn":
             self.input_length = 5 * 16000
-            return Model.HarmonicCNN()
+            return HarmonicCNN()
         else:
             print(
                 "model_type has to be one of [fcn, musicnn, crnn, sample, se, short, short_res, attention]"

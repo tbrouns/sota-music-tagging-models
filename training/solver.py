@@ -1,11 +1,11 @@
 # coding: utf-8
+import copy
 import csv
 import datetime
 import os
 import pickle
 import time
 
-import model as Model
 import numpy as np
 import pandas as pd
 import torch
@@ -16,6 +16,9 @@ from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
+
+from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
+                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
 
 skip_files = set(
     [
@@ -146,22 +149,28 @@ def read_file(tsv_file):
 
 
 class Solver(object):
-    def __init__(self, data_loader, config):
+    def __init__(self, data_loader, config, num_classes=50):
         # data loader
         self.data_loader = data_loader
         self.dataset = config.dataset
         self.data_path = config.data_path
         self.input_length = config.input_length
-
+        self.num_classes = num_classes
+        self.iteration_start = 0
+        self.best_metric = 0.0
+        self.threshold = config.threshold
+        
         # training settings
         self.n_epochs = config.n_epochs
         self.lr = config.lr
         self.use_tensorboard = config.use_tensorboard
+        self.reconst_loss = self.get_loss_function()
 
         # model path and step size
-        self.model_save_path = config.model_save_path
+        self.model_save_dir = config.model_save_dir
         self.model_load_path = config.model_load_path
         self.log_step = config.log_step
+        self.val_step = config.val_step
         self.batch_size = config.batch_size
         self.model_type = config.model_type
 
@@ -173,13 +182,13 @@ class Solver(object):
         self.build_model()
 
         # Tensorboard
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter(log_dir=config.log_dir)
 
     def get_dataset(self):
         if self.dataset == "mtat":
             self.valid_list = np.load("./../split/mtat/valid.npy")
             self.binary = np.load("./../split/mtat/binary.npy")
-        if self.dataset == "msd":
+        elif self.dataset == "msd":
             train_file = os.path.join("./../split/msd", "filtered_list_train.cP")
             train_list = pickle.load(open(train_file, "rb"), encoding="bytes")
             val_set = train_list[201680:]
@@ -188,33 +197,43 @@ class Solver(object):
             ]
             id2tag_file = os.path.join("./../split/msd", "msd_id_to_tag_vector.cP")
             self.id2tag = pickle.load(open(id2tag_file, "rb"), encoding="bytes")
-        if self.dataset == "jamendo":
+        elif self.dataset == "jamendo":
             train_file = os.path.join(
                 "./../split/mtg-jamendo", "autotagging_top50tags-validation.tsv"
             )
             self.file_dict = read_file(train_file)
             self.valid_list = list(read_file(train_file).keys())
             self.mlb = LabelBinarizer().fit(TAGS)
+        elif self.dataset == "bmg":
+            self.num_classes = self.data_loader.dataset.num_keywords
+            from .data_loader.bmg_loader import get_audio_loader
+
+            self.val_loader = get_audio_loader(
+                batch_size=self.data_loader.batch_size,
+                split="VAL",
+                input_length=self.data_loader.dataset.input_length,
+                num_workers=self.data_loader.num_workers,
+            )
 
     def get_model(self):
         if self.model_type == "fcn":
-            return Model.FCN()
+            return FCN(n_class=self.num_classes)
         elif self.model_type == "musicnn":
-            return Model.Musicnn(dataset=self.dataset)
+            return Musicnn(dataset=self.dataset, n_class=self.num_classes)
         elif self.model_type == "crnn":
-            return Model.CRNN()
+            return CRNN(n_class=self.num_classes)
         elif self.model_type == "sample":
-            return Model.SampleCNN()
+            return SampleCNN(n_class=self.num_classes)
         elif self.model_type == "se":
-            return Model.SampleCNNSE()
+            return SampleCNNSE(n_class=self.num_classes)
         elif self.model_type == "short":
-            return Model.ShortChunkCNN()
+            return ShortChunkCNN(n_class=self.num_classes)
         elif self.model_type == "short_res":
-            return Model.ShortChunkCNN_Res()
+            return ShortChunkCNN_Res(n_class=self.num_classes)
         elif self.model_type == "attention":
-            return Model.CNNSA()
+            return CNNSA(n_class=self.num_classes)
         elif self.model_type == "hcnn":
-            return Model.HarmonicCNN()
+            return HarmonicCNN(n_class=self.num_classes)
 
     def build_model(self):
         # model
@@ -225,8 +244,16 @@ class Solver(object):
             self.model.cuda()
 
         # load pretrained model
-        if len(self.model_load_path) > 1:
+        if os.path.isfile(self.model_load_path):
+            print(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
+            basename = os.path.splitext(self.model_load_path)[0]
+            iteration_start, best_metric = basename.split("_")[-2:]
+            if iteration_start.isdigit() and best_metric.isdigit():
+                self.iteration_start = int(iteration_start)
+                self.best_metric = float(best_metric)
+        else:
+            print(f"Pre-trained model not found: {self.model_load_path}")
 
         # optimizers
         self.optimizer = torch.optim.Adam(
@@ -252,16 +279,19 @@ class Solver(object):
         start_t = time.time()
         current_optimizer = "adam"
         reconst_loss = self.get_loss_function()
-        best_metric = 0
-        drop_counter = 0
-
+        
+        # drop_counter = 0
+        n_samples = len(self.data_loader)
+        
         # Iterate
         for epoch in range(self.n_epochs):
-            ctr = 0
-            drop_counter += 1
-            self.model = self.model.train()
-            for x, y in self.data_loader:
-                ctr += 1
+            # drop_counter += 1
+            cumulative_loss = 0.0
+            for ctr, (x, y) in enumerate(self.data_loader):
+                
+                ctr = ctr + 1
+                iteration = self.iteration_start + epoch * n_samples + ctr
+                
                 # Forward
                 x = self.to_var(x)
                 y = self.to_var(y)
@@ -274,16 +304,24 @@ class Solver(object):
                 self.optimizer.step()
 
                 # Log
-                self.print_log(epoch, ctr, loss, start_t)
-            self.writer.add_scalar("Loss/train", loss.item(), epoch)
+                cumulative_loss += loss.item()
+                if ctr % self.log_step == 0:
+                    mean_loss = cumulative_loss / self.log_step
+                    print_epoch = iteration // n_samples
+                    print_ctr = (iteration % n_samples) + 1
+                    self.print_log(print_epoch, print_ctr, mean_loss, start_t)
+                    self.writer.add_scalar("Loss/train", mean_loss, iteration)
+                    cumulative_loss = 0.0
+                if ctr % self.val_step == 0:
+                    # validation
+                    print("Running validation ...")
+                    self.validation(iteration)
+                    print("Best metric:", self.best_metric)
 
-            # validation
-            best_metric = self.validation(best_metric, epoch)
-
-            # schedule optimizer
-            current_optimizer, drop_counter = self.opt_schedule(
-                current_optimizer, drop_counter
-            )
+            # # schedule optimizer
+            # current_optimizer, drop_counter = self.opt_schedule(
+            #     current_optimizer, drop_counter
+            # )
 
         print(
             "[%s] Train finished. Elapsed: %s"
@@ -296,7 +334,7 @@ class Solver(object):
     def opt_schedule(self, current_optimizer, drop_counter):
         # adam to sgd
         if current_optimizer == "adam" and drop_counter == 80:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(),
                 0.001,
@@ -309,7 +347,7 @@ class Solver(object):
             print("sgd 1e-3")
         # first drop
         if current_optimizer == "sgd_1" and drop_counter == 20:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             for pg in self.optimizer.param_groups:
                 pg["lr"] = 0.0001
             current_optimizer = "sgd_2"
@@ -317,7 +355,7 @@ class Solver(object):
             print("sgd 1e-4")
         # second drop
         if current_optimizer == "sgd_2" and drop_counter == 20:
-            self.load(os.path.join(self.model_save_path, "best_model.pth"))
+            self.load(self.model_save_path)
             for pg in self.optimizer.param_groups:
                 pg["lr"] = 0.00001
             current_optimizer = "sgd_3"
@@ -342,6 +380,7 @@ class Solver(object):
         elif self.dataset == "jamendo":
             filename = self.file_dict[fn]["path"]
             npy_path = os.path.join(self.data_path, filename)
+
         raw = np.load(npy_path, mmap_mode="r")
 
         # split chunk
@@ -353,92 +392,107 @@ class Solver(object):
         return x
 
     def get_auc(self, est_array, gt_array):
+        gt_array = (gt_array >= self.threshold).astype(int)
+        # Check the number of unique values in the ground-truth
+        # Should have at least one positive and one negative example for each tag
+        keep = np.count_nonzero(np.diff(np.sort(gt_array, axis=0), axis=0), axis=0) >= 1
+        gt_array = gt_array[:, keep]
+        est_array = est_array[:, keep]
+        # Calculate ROC and MAP
         roc_aucs = metrics.roc_auc_score(gt_array, est_array, average="macro")
         pr_aucs = metrics.average_precision_score(gt_array, est_array, average="macro")
-        print("roc_auc: %.4f" % roc_aucs)
-        print("pr_auc: %.4f" % pr_aucs)
         return roc_aucs, pr_aucs
 
     def print_log(self, epoch, ctr, loss, start_t):
-        if (ctr) % self.log_step == 0:
-            print(
-                "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
-                % (
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    epoch + 1,
-                    self.n_epochs,
-                    ctr,
-                    len(self.data_loader),
-                    loss.item(),
-                    datetime.timedelta(seconds=time.time() - start_t),
-                )
+        n_samples = len(self.data_loader)
+        log_string = (
+            "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
+            % (
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                epoch + 1,
+                self.n_epochs,
+                ctr,
+                n_samples,
+                loss,
+                datetime.timedelta(seconds=time.time() - start_t),
             )
+        )
+        print(log_string)
 
-    def validation(self, best_metric, epoch):
-        roc_auc, pr_auc, loss = self.get_validation_score(epoch)
-        score = 1 - loss
-        if score > best_metric:
-            print("best model!")
-            best_metric = score
+    def validation(self, iteration):
+        roc_auc, pr_auc, loss = self.get_validation_score(iteration)
+        if roc_auc > self.best_metric:
+            self.best_metric = roc_auc
+            best_metric_str = "%.3f" % self.best_metric
+            self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}_{best_metric_str}.pth")
             torch.save(
                 self.model.state_dict(),
-                os.path.join(self.model_save_path, "best_model.pth"),
+                self.model_save_path,
             )
-        return best_metric
 
-    def get_validation_score(self, epoch):
-        self.model = self.model.eval()
+    def get_score(self, x, y, ground_truth, losses, est_array, gt_array):
+        out = self.model(x)
+        loss = self.reconst_loss(out, y)
+        losses.append(float(loss.data))
+        out = out.detach().cpu().numpy().tolist()
+        est_array.extend(out)
+        gt_array.extend(ground_truth)
+        return losses, est_array, gt_array
+
+    def get_validation_score(self, iteration):
         est_array = []
         gt_array = []
         losses = []
-        reconst_loss = self.get_loss_function()
-        index = 0
-        for line in tqdm.tqdm(self.valid_list):
-            if self.dataset == "mtat":
-                ix, fn = line.split("\t")
-            elif self.dataset == "msd":
-                fn = line
-                if fn.decode() in skip_files:
-                    continue
-            elif self.dataset == "jamendo":
-                fn = line
-
-            # load and split
-            x = self.get_tensor(fn)
-
-            # ground truth
-            if self.dataset == "mtat":
-                ground_truth = self.binary[int(ix)]
-            elif self.dataset == "msd":
-                ground_truth = self.id2tag[fn].flatten()
-            elif self.dataset == "jamendo":
-                ground_truth = np.sum(
-                    self.mlb.transform(self.file_dict[fn]["tags"]), axis=0
+        self.model.eval()
+        if self.val_loader is not None:
+            for x, y in self.val_loader:
+                ground_truth = y.detach().cpu().numpy().tolist()
+                x = self.to_var(x)
+                y = self.to_var(y)
+                losses, est_array, gt_array = self.get_score(
+                    x, y, ground_truth, losses, est_array, gt_array
                 )
+        else:
+            for line in tqdm.tqdm(self.valid_list):
+                if self.dataset == "mtat":
+                    ix, fn = line.split("\t")
+                elif self.dataset == "msd":
+                    fn = line
+                    if fn.decode() in skip_files:
+                        continue
+                elif self.dataset == "jamendo":
+                    fn = line
 
-            # forward
-            x = self.to_var(x)
-            y = torch.tensor(
-                [ground_truth.astype("float32") for i in range(self.batch_size)]
-            ).cuda()
-            out = self.model(x)
-            loss = reconst_loss(out, y)
-            losses.append(float(loss.data))
-            out = out.detach().cpu()
+                # load and split
+                x = self.get_tensor(fn)
 
-            # estimate
-            estimated = np.array(out).mean(axis=0)
-            est_array.append(estimated)
+                # ground truth
+                if self.dataset == "mtat":
+                    ground_truth = self.binary[int(ix)]
+                elif self.dataset == "msd":
+                    ground_truth = self.id2tag[fn].flatten()
+                elif self.dataset == "jamendo":
+                    ground_truth = np.sum(
+                        self.mlb.transform(self.file_dict[fn]["tags"]), axis=0
+                    )
 
-            gt_array.append(ground_truth)
-            index += 1
+                # forward
+                x = self.to_var(x)
+                y = torch.tensor(
+                    [ground_truth.astype("float32") for i in range(self.batch_size)]
+                ).cuda()
 
-        est_array, gt_array = np.array(est_array), np.array(gt_array)
+                losses, est_array, gt_array = self.get_score(
+                    x, y, ground_truth, losses, est_array, gt_array
+                )
+        self.model.train()
         loss = np.mean(losses)
-        print("loss: %.4f" % loss)
-
+        est_array, gt_array = np.array(est_array), np.array(gt_array)
         roc_auc, pr_auc = self.get_auc(est_array, gt_array)
-        self.writer.add_scalar("Loss/valid", loss, epoch)
-        self.writer.add_scalar("AUC/ROC", roc_auc, epoch)
-        self.writer.add_scalar("AUC/PR", pr_auc, epoch)
+        print("loss: %.4f" % loss)
+        print("roc_auc: %.4f" % roc_auc)
+        print("pr_auc: %.4f" % pr_auc)
+        self.writer.add_scalar("Loss/valid", loss, iteration)
+        self.writer.add_scalar("AUC/ROC", roc_auc, iteration)
+        self.writer.add_scalar("AUC/PR", pr_auc, iteration)
         return roc_auc, pr_auc, loss

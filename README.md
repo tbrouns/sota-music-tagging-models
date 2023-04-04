@@ -33,25 +33,26 @@ PyTorch implementation of state-of-the-art music tagging models :notes:
 - **Short-chunk CNN + Residual** : Short-chunk CNN with residual connections.
 
 
+## Dependencies
+    
+    sudo apt-get install libsndfile1
+    sudo apt-get install ffmpeg
+
 ## Requirements
-```
-conda create -n YOUR_ENV_NAME python=3.7
-conda activate YOUR_ENV_NAME
-pip install -r requirements.txt
-```
+
+    conda env create -n ENVNAME --file environment.yml
 
 
 ## Preprocessing
+
 STFT will be done on-the-fly. You only need to read and resample audio files into `.npy` files. 
 
 `cd preprocessing/`
-
 `python -u mtat_read.py run YOUR_DATA_PATH`
 
 ## Training
 
 `cd training/`
-
 `python -u main.py --data_path YOUR_DATA_PATH`
 
 Options
@@ -87,16 +88,6 @@ Options
 '--model_load_path', type=str, default='.'
 '--data_path', type=str, default='./data'
 ```
-
-## Performance Comparison
-Performances of SOTA models
-
-<figure><img src="figs/performance.png" width="550">
-
-Performances with perturbed inputs
-
-<img src="figs/generalization.png" width="550">
-
 
 
 ## Citation
