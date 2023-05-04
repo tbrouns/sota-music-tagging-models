@@ -12,8 +12,11 @@ from prosaic_common.config import get_cache_dir, get_config
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
-from prosaic_common.utils.utils_data import (get_basename_no_extension,
-                                             load_pickle, save_pickle)
+from prosaic_common.utils.utils_data import (
+    get_basename_no_extension,
+    load_pickle,
+    save_pickle,
+)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -48,9 +51,7 @@ class Processor:
             os.path.join(self.cache_dir, self.cfg["keyword_dict_cleaned"])
         )
         self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
-        self.bmg_labels = load_pickle(
-            os.path.join(self.cache_dir, "bmg_keywords.pkl")
-        )
+        self.bmg_labels = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
         self.missing_set_path = os.path.join(self.cache_dir, self.cfg["missing_files"])
         if os.path.isfile(self.missing_set_path):
             self.missing_set = load_pickle(self.missing_set_path)

@@ -6,20 +6,21 @@ import requests
 import soundfile as sf
 import torchaudio
 import torchaudio.transforms as T
-from miniaudio import SampleFormat, decode
+
 from torch.utils import data
 
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_data import load_pickle
-
+from prosaic_common.utils.utils_audio import load_audio_from_bucket
 
 """
 Pre-requisite. First run:
 
     preprocessing/bmg_read.py
 """
+
 
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
@@ -29,9 +30,7 @@ class AudioFolder(data.Dataset):
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.bmg_labels = load_pickle(
-            os.path.join(self.cache_dir, "bmg_keywords.pkl")
-        )
+        self.bmg_labels = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
         self.num_keywords = self.bmg_labels.shape[0]
         self.batch_size = batch_size
         self.split = split
@@ -46,19 +45,7 @@ class AudioFolder(data.Dataset):
         ext = os.path.splitext(file_path)[1]
         filename = f"{str(batch_index).zfill(3)}{ext}"
         save_path = os.path.join(self.mp3_dir, filename)
-        try:
-            audio_bytes = self.bucket.download_to_bytes(load_path=load_path)
-            x = decode(
-                audio_bytes,
-                nchannels=1,
-                sample_rate=self.fs,
-                output_format=SampleFormat.FLOAT32,
-            )
-            x = np.array(x.samples)
-        except Exception as e:
-            x = None
-            print(e)
-            print(f"Could not load: {load_path}!")
+        x = load_audio_from_bucket(self.bucket, save_path, fs=self.fs)
         y_labels = np.zeros(self.num_keywords, dtype=float)
         if x is not None:
             audio_len = len(x)
@@ -87,9 +74,9 @@ class AudioFolder(data.Dataset):
         if os.path.isfile(pkl_path):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
-            # self.file_list = self.file_list[:12000] # REMOVE!!!
         else:
             raise f"Pickle path does not exist: {pkl_path}"
+
 
 def get_audio_loader(
     root=None, batch_size=64, split="TRAIN", num_workers=0, input_length=None

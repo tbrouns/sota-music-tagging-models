@@ -17,8 +17,17 @@ from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
-from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
-                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
+from .model import (
+    CNNSA,
+    CRNN,
+    FCN,
+    HarmonicCNN,
+    Musicnn,
+    SampleCNN,
+    SampleCNNSE,
+    ShortChunkCNN,
+    ShortChunkCNN_Res,
+)
 
 skip_files = set(
     [
@@ -159,7 +168,7 @@ class Solver(object):
         self.iteration_start = 0
         self.best_metric = 0.0
         self.threshold = config.threshold
-        
+
         # training settings
         self.n_epochs = config.n_epochs
         self.lr = config.lr
@@ -279,19 +288,19 @@ class Solver(object):
         start_t = time.time()
         current_optimizer = "adam"
         reconst_loss = self.get_loss_function()
-        
+
         # drop_counter = 0
         n_samples = len(self.data_loader)
-        
+
         # Iterate
         for epoch in range(self.n_epochs):
             # drop_counter += 1
             cumulative_loss = 0.0
             for ctr, (x, y) in enumerate(self.data_loader):
-                
+
                 ctr = ctr + 1
                 iteration = self.iteration_start + epoch * n_samples + ctr
-                
+
                 # Forward
                 x = self.to_var(x)
                 y = self.to_var(y)
@@ -405,17 +414,14 @@ class Solver(object):
 
     def print_log(self, epoch, ctr, loss, start_t):
         n_samples = len(self.data_loader)
-        log_string = (
-            "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s"
-            % (
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                epoch + 1,
-                self.n_epochs,
-                ctr,
-                n_samples,
-                loss,
-                datetime.timedelta(seconds=time.time() - start_t),
-            )
+        log_string = "[%s] Epoch [%d/%d] Iter [%d/%d] train loss: %.4f Elapsed: %s" % (
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            epoch + 1,
+            self.n_epochs,
+            ctr,
+            n_samples,
+            loss,
+            datetime.timedelta(seconds=time.time() - start_t),
         )
         print(log_string)
 
@@ -424,7 +430,9 @@ class Solver(object):
         if roc_auc > self.best_metric:
             self.best_metric = roc_auc
             best_metric_str = "%.3f" % self.best_metric
-            self.model_save_path = os.path.join(self.model_save_dir, f"best_model_{iteration}_{best_metric_str}.pth")
+            self.model_save_path = os.path.join(
+                self.model_save_dir, f"best_model_{iteration}_{best_metric_str}.pth"
+            )
             torch.save(
                 self.model.state_dict(),
                 self.model_save_path,
