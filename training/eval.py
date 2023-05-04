@@ -16,8 +16,17 @@ from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
 
-from .model import (CNNSA, CRNN, FCN, HarmonicCNN, Musicnn, SampleCNN,
-                    SampleCNNSE, ShortChunkCNN, ShortChunkCNN_Res)
+from .model import (
+    CNNSA,
+    CRNN,
+    FCN,
+    HarmonicCNN,
+    Musicnn,
+    SampleCNN,
+    SampleCNNSE,
+    ShortChunkCNN,
+    ShortChunkCNN_Res,
+)
 from .solver import skip_files
 
 TAGS = [

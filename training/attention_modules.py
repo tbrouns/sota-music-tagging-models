@@ -21,8 +21,7 @@ def gelu(x):
 
 # LayerNorm
 try:
-    from apex.normalization.fused_layer_norm import \
-        FusedLayerNorm as BertLayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm as BertLayerNorm
 except ImportError:
     # print("Better speed can be achieved with apex installed from https://www.github.com/nvidia/apex.")
     class BertLayerNorm(nn.Module):

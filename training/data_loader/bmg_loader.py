@@ -21,6 +21,7 @@ Pre-requisite. First run:
     preprocessing/bmg_read.py
 """
 
+
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
         self.bucket = GCP_BUCKETS["songs"]
@@ -29,9 +30,7 @@ class AudioFolder(data.Dataset):
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.bmg_labels = load_pickle(
-            os.path.join(self.cache_dir, "bmg_keywords.pkl")
-        )
+        self.bmg_labels = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
         self.num_keywords = self.bmg_labels.shape[0]
         self.batch_size = batch_size
         self.split = split
@@ -77,6 +76,7 @@ class AudioFolder(data.Dataset):
             self.file_list = list(self.file_dict.keys())
         else:
             raise f"Pickle path does not exist: {pkl_path}"
+
 
 def get_audio_loader(
     root=None, batch_size=64, split="TRAIN", num_workers=0, input_length=None
