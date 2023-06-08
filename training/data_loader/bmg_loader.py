@@ -6,14 +6,13 @@ import requests
 import soundfile as sf
 import torchaudio
 import torchaudio.transforms as T
-
 from torch.utils import data
 
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
-from prosaic_common.utils.utils_data import load_pickle
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
+from prosaic_common.utils.utils_data import load_pickle
 
 """
 Pre-requisite. First run:
