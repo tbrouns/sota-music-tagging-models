@@ -1,3 +1,17 @@
+"""
+Create song list, add keywords, shuffle, do train/val/test split
+
+Pre-requisite. First run:
+
+    prosaic-research/music_tagging/match_tags.ipynb
+
+Run from prosaic-research root:
+
+     python -m third_party.sota_music_tagging_models.preprocessing.bmg_read
+
+"""
+
+
 import glob
 import json
 import logging
@@ -21,39 +35,25 @@ from prosaic_common.utils.utils_data import (
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-"""
-Create song list, add keywords, shuffle, do train/val/test split
-
-Pre-requisite. First run:
-
-    prosaic-research/music_tagging/match_tags.ipynb
-
-Run from prosaic-research root:
-
-     python -m third_party.sota_music_tagging_models.preprocessing.bmg_read
-
-"""
 
 
 class Processor:
     def __init__(self, config_path=None):
         if config_path is None:
-            config_path = "music_tagging/config.ini"
+            config_path = "data_processing/config.ini"
         self.cfg = get_config(config_path=config_path)["match_tags"]
         self.bucket = GCP_BUCKETS["songs"]
         self.cache_dir = os.path.join(get_cache_dir(), "bmg")
-        self.client = BigQuery()
-        # TODO: add these PKL filenames to config.ini in prosaic_common config
-        self.keyword_mapping = load_pickle(
-            os.path.join(self.cache_dir, self.cfg["keyword_dict_mapped"])
-        )
-        self.keyword_cleaning = load_pickle(
-            os.path.join(self.cache_dir, self.cfg["keyword_dict_cleaned"])
-        )
-        self.bmg_taxonomy = self.client.get_df_from_table_name("bmg_taxonomy")
-        self.bmg_labels = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
-        self.missing_set_path = os.path.join(self.cache_dir, self.cfg["missing_files"])
-        if os.path.isfile(self.missing_set_path):
+        self.bigquery = BigQuery()
+        # Get the labels
+        self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
+        self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
+        # Get the PKL files from Google Storage
+        bucket_artifacts = GCP_BUCKETS["artifacts"]
+        self.keyword_mapping = download_pickle(self.cfg["keyword_dict_mapped"])
+        self.keyword_cleaning = download_pickle(self.cfg["keyword_dict_cleaned"])
+        self.missing_set_path = download_pickle(self.cfg["missing_files"])
+        if self.missing_set_path is not None:
             self.missing_set = load_pickle(self.missing_set_path)
             self.create_missing_set = False
         else:
@@ -62,14 +62,18 @@ class Processor:
         self.data_dict = {}
         self.test_size = 2000
         self.val_size = 2000
-
+    
+    def download_pickle(filename):
+        bucket_artifacts.download_to_file(load_path=os.path.join("tagging", filename))
+        return load_pickle(os.path.join(self.cache_dir, filename))
+        
     def save_split(self, filepaths, split="train"):
         split_dict = dict((k, self.data_dict[k]) for k in filepaths)
         save_path = os.path.join(self.cache_dir, f"bmg_{split}.pkl")
         save_pickle(save_path, split_dict)
 
     def get_songs_and_keywords(self):
-        tracks = self.client.get_df_from_table_name("tracks")
+        tracks = self.bigquery.get_df_from_table_name("tracks")
         n_bmg_labels = self.bmg_labels.shape[0]
         keywords_dict = {}
         logger.info("Get the keywords for each song...")
