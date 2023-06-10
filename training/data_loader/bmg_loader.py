@@ -5,15 +5,18 @@ Pre-requisite. First run:
 """
 
 import os
+
 import numpy as np
 from torch.utils import data
-from ..utils import get_pickle_filename
+
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
-from prosaic_common.utils.utils_data import load_pickle
+from prosaic_common.utils.utils_data import load_pickle, get_bmg_labels_for_category
+
+from ..utils import get_pickle_filename
 
 
 class AudioFolder(data.Dataset):
@@ -26,7 +29,9 @@ class AudioFolder(data.Dataset):
         self.fs = fs
         logger.info(f"Picking labels for the {category} category...")
         self.category = category
-        self.bmg_labels = get_bmg_labels_for_category(bigquery=self.bigquery, category=self.category)
+        self.bmg_labels = get_bmg_labels_for_category(
+            bigquery=self.bigquery, category=self.category
+        )
         self.num_keywords = self.bmg_labels.shape[0]
         self.split = split
         self.input_length = input_length

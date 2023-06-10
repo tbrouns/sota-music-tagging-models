@@ -13,18 +13,23 @@ Run from prosaic-research root:
 
 
 import json
-import logging
 import os
 import random
 import numpy as np
 from tqdm import tqdm
-from ..utils import get_pickle_filename
+
 from prosaic_common.config import get_cache_dir, get_config_and_combine
 from prosaic_common.logger import mute_logging
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
-from prosaic_common.utils.utils_data import load_pickle, save_pickle, get_bmg_labels_for_category
+from prosaic_common.utils.utils_data import (
+    get_bmg_labels_for_category,
+    load_pickle,
+    save_pickle,
+)
+
+from ..utils import get_pickle_filename
 
 mute_logging()
 
@@ -41,7 +46,9 @@ class Processor:
         self.bigquery = BigQuery()
         # Get the labels
         self.category = category
-        self.bmg_labels = get_bmg_labels_for_category(bigquery=self.bigquery, category=self.category)
+        self.bmg_labels = get_bmg_labels_for_category(
+            bigquery=self.bigquery, category=self.category
+        )
         # Get the PKL files from Google Storage
         self.keyword_mapping = self.download_pickle(
             self.cfg["match_tags"]["keyword_dict_mapped"]

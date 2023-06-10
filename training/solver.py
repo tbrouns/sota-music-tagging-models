@@ -8,7 +8,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
-from dotmap import DotMap
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
@@ -214,11 +213,8 @@ class Solver(object):
         elif self.dataset == "bmg":
             self.num_classes = self.data_loader.dataset.num_keywords
             from .data_loader.bmg_loader import get_audio_loader
-            
-            self.val_loader = get_audio_loader(
-                config=self.config,
-                split="VAL"
-            )
+
+            self.val_loader = get_audio_loader(config=self.config, split="VAL")
 
     def get_model(self):
         if self.model_type == "fcn":
