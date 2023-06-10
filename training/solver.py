@@ -4,11 +4,11 @@ import datetime
 import os
 import pickle
 import time
-
 import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
+from dotmap import DotMap
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
@@ -158,6 +158,7 @@ class Solver(object):
     def __init__(self, data_loader, config, num_classes=50):
         # data loader
         self.data_loader = data_loader
+        self.config = config
         self.dataset = config.dataset
         self.data_path = config.data_path
         self.input_length = config.input_length
@@ -213,12 +214,10 @@ class Solver(object):
         elif self.dataset == "bmg":
             self.num_classes = self.data_loader.dataset.num_keywords
             from .data_loader.bmg_loader import get_audio_loader
-
+            
             self.val_loader = get_audio_loader(
-                batch_size=self.data_loader.batch_size,
-                split="VAL",
-                input_length=self.data_loader.dataset.input_length,
-                num_workers=self.data_loader.num_workers,
+                config=self.config,
+                split="VAL"
             )
 
     def get_model(self):

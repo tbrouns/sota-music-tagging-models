@@ -16,22 +16,21 @@ import json
 import logging
 import os
 import random
-
 import numpy as np
 from tqdm import tqdm
-
+from ..utils import get_pickle_filename
 from prosaic_common.config import get_cache_dir, get_config_and_combine
+from prosaic_common.logger import mute_logging
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
-from prosaic_common.utils.utils_data import load_pickle, save_pickle
+from prosaic_common.utils.utils_data import load_pickle, save_pickle, get_bmg_labels_for_category
 
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+mute_logging()
 
 
 class Processor:
-    def __init__(self, config_path=None):
+    def __init__(self, config_path=None, category=None):
         if config_path is None:
             # TODO: decouple this properly
             config_path = "data_processing/config.ini"
@@ -41,8 +40,8 @@ class Processor:
         self.cache_dir = get_cache_dir()
         self.bigquery = BigQuery()
         # Get the labels
-        self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
-        self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
+        self.category = category
+        self.bmg_labels = get_bmg_labels_for_category(bigquery=self.bigquery, category=self.category)
         # Get the PKL files from Google Storage
         self.keyword_mapping = self.download_pickle(
             self.cfg["match_tags"]["keyword_dict_mapped"]
@@ -78,12 +77,10 @@ class Processor:
             contents = None
         return contents
 
-    def get_pickle_filepath(self, split):
-        return os.path.join(self.cache_dir, f"bmg_{split}.pkl")
-
     def save_split(self, filepaths, split="train"):
         split_dict = dict((k, self.data_dict[k]) for k in filepaths)
-        save_pickle(self.get_pickle_filepath(split), split_dict)
+        filename = get_pickle_filename(split=split, category=self.category)
+        save_pickle(os.path.join(self.cache_dir, filename), split_dict)
 
     def load_train_val_test_split(self):
         splits = ["train", "val", "test"]

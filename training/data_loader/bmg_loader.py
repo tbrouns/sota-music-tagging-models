@@ -5,10 +5,9 @@ Pre-requisite. First run:
 """
 
 import os
-
 import numpy as np
 from torch.utils import data
-
+from ..utils import get_pickle_filename
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
@@ -25,16 +24,13 @@ class AudioFolder(data.Dataset):
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
-        if category is not None:
-            logger.info(f"Picking labels for the {category} category...")
-            self.bmg_taxonomy = self.bmg_taxonomy.iloc[
-                self.bmg_taxonomy["category"] == category
-            ]
-        self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
+        logger.info(f"Picking labels for the {category} category...")
+        self.category = category
+        self.bmg_labels = get_bmg_labels_for_category(bigquery=self.bigquery, category=self.category)
         self.num_keywords = self.bmg_labels.shape[0]
         self.split = split
         self.input_length = input_length
+        logger.info(f"There are {self.num_keywords} tags in the {self.split} data.")
         self.get_songlist()
 
     def __getitem__(self, index):
@@ -66,7 +62,8 @@ class AudioFolder(data.Dataset):
         return len(self.file_list)
 
     def get_songlist(self):
-        pkl_path = os.path.join(self.cache_dir, f"bmg_{self.split.lower()}.pkl")
+        filename = get_pickle_filename(split=self.split.lower(), category=self.category)
+        pkl_path = os.path.join(self.cache_dir, filename)
         if os.path.isfile(pkl_path):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
