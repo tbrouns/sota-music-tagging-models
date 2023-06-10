@@ -4,7 +4,7 @@ import os
 from .solver import Solver
 
 
-def main(config):
+def train(config):
     # path for models
     if not os.path.exists(config.model_save_dir):
         os.makedirs(config.model_save_dir)
@@ -80,4 +80,4 @@ if __name__ == "__main__":
     config = parser.parse_args()
 
     print(config)
-    main(config)
+    train(config)

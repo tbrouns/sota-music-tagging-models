@@ -1,3 +1,9 @@
+"""
+Pre-requisite. First run:
+
+    preprocessing/bmg_read.py
+"""
+
 import os
 
 import librosa
@@ -14,22 +20,17 @@ from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
 from prosaic_common.utils.utils_data import load_pickle
 
-"""
-Pre-requisite. First run:
-
-    preprocessing/bmg_read.py
-"""
-
 
 class AudioFolder(data.Dataset):
     def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
         self.bucket = GCP_BUCKETS["songs"]
-        self.client = BigQuery()
-        self.cache_dir = os.path.join(get_cache_dir(), "bmg")
+        self.bigquery = BigQuery()
+        self.cache_dir = get_cache_dir()
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        self.bmg_labels = load_pickle(os.path.join(self.cache_dir, "bmg_keywords.pkl"))
+        self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
+        self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
         self.num_keywords = self.bmg_labels.shape[0]
         self.batch_size = batch_size
         self.split = split
@@ -39,12 +40,8 @@ class AudioFolder(data.Dataset):
     def __getitem__(self, index):
         # Download the song
         file_path = self.file_list[index]
-        batch_index = index % self.batch_size
         load_path = os.path.join("harvest-extract", file_path)
-        ext = os.path.splitext(file_path)[1]
-        filename = f"{str(batch_index).zfill(3)}{ext}"
-        save_path = os.path.join(self.mp3_dir, filename)
-        x = load_audio_from_bucket(self.bucket, save_path, fs=self.fs)
+        x = load_audio_from_bucket(self.bucket, load_path, fs=self.fs)
         y_labels = np.zeros(self.num_keywords, dtype=float)
         if x is not None:
             audio_len = len(x)
@@ -74,7 +71,7 @@ class AudioFolder(data.Dataset):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
         else:
-            raise f"Pickle path does not exist: {pkl_path}"
+            raise f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first."
 
 
 def get_audio_loader(
