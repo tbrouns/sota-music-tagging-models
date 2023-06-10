@@ -113,12 +113,14 @@ class AudioFolder(data.Dataset):
         return len(self.fl) - len(skip_files)
 
 
-def get_audio_loader(root, batch_size, split="TRAIN", num_workers=0, input_length=None):
+def get_audio_loader(config, split="TRAIN"):
     data_loader = data.DataLoader(
-        dataset=AudioFolder(root, split=split, input_length=input_length),
-        batch_size=batch_size,
+        dataset=AudioFolder(
+            root=config.data_path, split=split, input_length=config.input_length
+        ),
+        batch_size=config.batch_size,
         shuffle=True,
         drop_last=False,
-        num_workers=num_workers,
+        num_workers=config.num_workers,
     )
     return data_loader

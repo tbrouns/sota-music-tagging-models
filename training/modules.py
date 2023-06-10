@@ -1,13 +1,8 @@
-import math
-import sys
-
 import librosa
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchaudio
-from torch.autograd import Variable
 
 
 class Conv_1d(nn.Module):
@@ -312,8 +307,8 @@ class HarmonicSTFT(nn.Module):
         ).transpose(1, 2)
 
         # (batch, channel, length) -> (batch, harmonic, f0, length)
-        b, c, l = harmonic_spec.size()
-        harmonic_spec = harmonic_spec.view(b, self.n_harmonic, self.level, l)
+        b, c, length = harmonic_spec.size()
+        harmonic_spec = harmonic_spec.view(b, self.n_harmonic, self.level, length)
 
         # amplitude to db
         harmonic_spec = self.amplitude_to_db(harmonic_spec)

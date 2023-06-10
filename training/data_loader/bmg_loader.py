@@ -5,18 +5,20 @@ Pre-requisite. First run:
 """
 
 import os
+
 import numpy as np
 from torch.utils import data
 
 from prosaic_common.config import get_cache_dir
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
+from prosaic_common.utils.logger import logger
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
 from prosaic_common.utils.utils_data import load_pickle
 
 
 class AudioFolder(data.Dataset):
-    def __init__(self, batch_size=64, split="TRAIN", input_length=None, fs=16000):
+    def __init__(self, split="TRAIN", input_length=None, fs=16000, category=None):
         self.bucket = GCP_BUCKETS["songs"]
         self.bigquery = BigQuery()
         self.cache_dir = get_cache_dir()
@@ -24,9 +26,13 @@ class AudioFolder(data.Dataset):
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
         self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
+        if category is not None:
+            logger.info(f"Picking labels for the {category} category...")
+            self.bmg_taxonomy = self.bmg_taxonomy.iloc[
+                self.bmg_taxonomy["category"] == category
+            ]
         self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
         self.num_keywords = self.bmg_labels.shape[0]
-        self.batch_size = batch_size
         self.split = split
         self.input_length = input_length
         self.get_songlist()
@@ -68,16 +74,14 @@ class AudioFolder(data.Dataset):
             raise f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first."
 
 
-def get_audio_loader(
-    root=None, batch_size=64, split="TRAIN", num_workers=0, input_length=None
-):
+def get_audio_loader(config, split="TRAIN"):
     data_loader = data.DataLoader(
         dataset=AudioFolder(
-            batch_size=batch_size, split=split, input_length=input_length
+            split=split, input_length=config.input_length, category=config.category
         ),
-        batch_size=batch_size,
+        batch_size=config.batch_size,
         shuffle=True,
         drop_last=False,
-        num_workers=num_workers,
+        num_workers=config.num_workers,
     )
     return data_loader

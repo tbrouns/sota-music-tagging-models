@@ -2,17 +2,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchaudio
-from torch.autograd import Variable
 
-from .attention_modules import (
-    BertConfig,
-    BertEmbeddings,
-    BertEncoder,
-    BertPooler,
-    PositionalEncoding,
-)
+from .attention_modules import BertConfig, BertEncoder, BertPooler
 from .modules import (
     Conv_1d,
     Conv_2d,

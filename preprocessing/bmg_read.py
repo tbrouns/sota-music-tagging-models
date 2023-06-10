@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import random
+
 import numpy as np
 from tqdm import tqdm
 
@@ -23,10 +24,7 @@ from prosaic_common.config import get_cache_dir, get_config_and_combine
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
-from prosaic_common.utils.utils_data import (
-    load_pickle,
-    save_pickle,
-)
+from prosaic_common.utils.utils_data import load_pickle, save_pickle
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)

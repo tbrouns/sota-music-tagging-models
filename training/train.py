@@ -33,11 +33,8 @@ def train(config):
 
     # get data loder
     train_loader = get_audio_loader(
-        root=config.data_path,
-        batch_size=config.batch_size,
+        config=config,
         split="TRAIN",
-        input_length=config.input_length,
-        num_workers=config.num_workers,
     )
     solver = Solver(data_loader=train_loader, config=config)
     solver.train()

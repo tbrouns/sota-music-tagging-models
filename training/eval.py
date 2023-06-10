@@ -1,14 +1,10 @@
 # coding: utf-8
 import argparse
 import csv
-import datetime
 import os
 import pickle
-import time
 
-import fire
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
@@ -111,31 +107,31 @@ class Predict(object):
     def get_model(self):
         if self.model_type == "fcn":
             self.input_length = 29 * 16000
-            return Model.FCN()
+            return FCN()
         elif self.model_type == "musicnn":
             self.input_length = 3 * 16000
-            return Model.Musicnn(dataset=self.dataset)
+            return Musicnn(dataset=self.dataset)
         elif self.model_type == "crnn":
             self.input_length = 29 * 16000
-            return Model.CRNN()
+            return CRNN()
         elif self.model_type == "sample":
             self.input_length = 59049
-            return Model.SampleCNN()
+            return SampleCNN()
         elif self.model_type == "se":
             self.input_length = 59049
-            return Model.SampleCNNSE()
+            return SampleCNNSE()
         elif self.model_type == "attention":
             self.input_length = 15 * 16000
-            return Model.CNNSA()
+            return CNNSA()
         elif self.model_type == "hcnn":
             self.input_length = 5 * 16000
-            return Model.HarmonicCNN()
+            return HarmonicCNN()
         elif self.model_type == "short":
             self.input_length = 59049
-            return Model.ShortChunkCNN()
+            return ShortChunkCNN()
         elif self.model_type == "short_res":
             self.input_length = 59049
-            return Model.ShortChunkCNN_Res()
+            return ShortChunkCNN_Res()
         else:
             print(
                 "model_type has to be one of [fcn, musicnn, crnn, sample, se, short, short_res, attention]"

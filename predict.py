@@ -1,5 +1,4 @@
 import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -10,9 +9,15 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-sys.path.insert(0, "training")
-
-import model
+from .training.model import (
+    CNNSA,
+    CRNN,
+    FCN,
+    HarmonicCNN,
+    Musicnn,
+    SampleCNN,
+    SampleCNNSE,
+)
 
 SAMPLE_RATE = 16000
 DATASET = "mtat"
@@ -35,13 +40,13 @@ class Predictor(cog.Predictor):
             self.device = torch.device("cpu")
 
         self.models = {
-            "fcn": model.FCN().to(self.device),
-            "musicnn": model.Musicnn(dataset=DATASET).to(self.device),
-            "crnn": model.CRNN().to(self.device),
-            "sample": model.SampleCNN().to(self.device),
-            "se": model.SampleCNNSE().to(self.device),
-            "attention": model.CNNSA().to(self.device),
-            "hcnn": model.HarmonicCNN().to(self.device),
+            "fcn": FCN().to(self.device),
+            "musicnn": Musicnn(dataset=DATASET).to(self.device),
+            "crnn": CRNN().to(self.device),
+            "sample": SampleCNN().to(self.device),
+            "se": SampleCNNSE().to(self.device),
+            "attention": CNNSA().to(self.device),
+            "hcnn": HarmonicCNN().to(self.device),
         }
         self.input_lengths = {
             "fcn": 29 * 16000,

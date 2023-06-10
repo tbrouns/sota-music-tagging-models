@@ -6,17 +6,13 @@ https://github.com/bmcfee/muda
 """
 import argparse
 import csv
-import datetime
 import os
 import pickle
 import subprocess
 import tempfile
-import time
 
-import fire
 import librosa
 import numpy as np
-import pandas as pd
 import soundfile as psf
 import torch
 import torch.nn as nn
@@ -328,7 +324,6 @@ class Predict(object):
         n_frames = len(x)
         noise_white = np.random.RandomState().randn(n_frames)
         noise_fft = np.fft.rfft(noise_white)
-        values = np.linspace(1, n_frames * 0.5 + 1, n_frames // 2 + 1)
         colored_filter = np.linspace(1, n_frames / 2 + 1, n_frames // 2 + 1) ** 0
         noise_filtered = noise_fft * colored_filter
         noise = librosa.util.normalize(np.fft.irfft(noise_filtered)) * (x.max())

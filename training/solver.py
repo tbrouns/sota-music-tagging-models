@@ -1,5 +1,4 @@
 # coding: utf-8
-import copy
 import csv
 import datetime
 import os
@@ -7,10 +6,8 @@ import pickle
 import time
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import tqdm
 from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
@@ -253,6 +250,7 @@ class Solver(object):
             self.model.cuda()
 
         # load pretrained model
+        # TODO: load the model from the bucket
         if os.path.isfile(self.model_load_path):
             print(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
@@ -286,7 +284,6 @@ class Solver(object):
     def train(self):
         # Start training
         start_t = time.time()
-        current_optimizer = "adam"
         reconst_loss = self.get_loss_function()
 
         # drop_counter = 0

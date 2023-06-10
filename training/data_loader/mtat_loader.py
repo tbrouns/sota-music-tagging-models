@@ -21,18 +21,18 @@ class AudioFolder(data.Dataset):
         """
         Returns list of strings. For example:
 
-        index		string: `index`\t`song_path`
+        index       string: `index`\t`song_path`
         ----------------------------------------------------------------------------------------------------------------
-        [0000]		0	f/american_bach_soloists-j_s__bach_solo_cantatas-01-bwv54__i_aria-30-59.mp3
-        [....]		.
-        [....]		.
-        [0005]		11	e/steven_devine-portrait_of_an_english_harpsichord-01-lesson_1_in_g_major_prelude_james_nares-0-29.mp3
-        [....]		.
-        [....]		.
-        [0028]		115	d/electric_frankenstein-sick_songs-01-action_high-117-146.mp3
-        [....]		.
-        [....]		.
-        [....]		etc.
+        [0000]      0   f/american_bach_soloists-(...)atas-01-bwv54__i_aria-30-59.mp3
+        [....]      .
+        [....]      .
+        [0005]      11  e/steven_devine-portrait.(...)or_prelude_james_nares-0-29.mp3
+        [....]      .
+        [....]      .
+        [0028]      115 d/electric_frankenstein-sick_songs-01-action_high-117-146.mp3
+        [....]      .
+        [....]      .
+        [....]      etc.
 
         """
 
@@ -62,12 +62,14 @@ class AudioFolder(data.Dataset):
         return len(self.fl)
 
 
-def get_audio_loader(root, batch_size, split="TRAIN", num_workers=0, input_length=None):
+def get_audio_loader(config, split="TRAIN"):
     data_loader = data.DataLoader(
-        dataset=AudioFolder(root, split=split, input_length=input_length),
-        batch_size=batch_size,
+        dataset=AudioFolder(
+            root=config.data_path, split=split, input_length=config.input_length
+        ),
+        batch_size=config.batch_size,
         shuffle=True,
         drop_last=False,
-        num_workers=num_workers,
+        num_workers=config.num_workers,
     )
     return data_loader
