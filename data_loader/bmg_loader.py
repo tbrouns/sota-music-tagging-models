@@ -14,7 +14,7 @@ from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
-from prosaic_common.utils.utils_data import load_pickle, get_bmg_tags_for_category
+from prosaic_common.utils.utils_data import get_bmg_tags_for_category, load_pickle
 
 from ..utils import get_pickle_filename
 
@@ -75,7 +75,9 @@ class AudioFolder(data.Dataset):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
         else:
-            raise Exception(f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first.")
+            raise Exception(
+                f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first."
+            )
 
 
 def get_audio_loader(config, split="TRAIN"):

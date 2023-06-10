@@ -4,6 +4,7 @@ import datetime
 import os
 import pickle
 import time
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,6 +13,8 @@ from sklearn import metrics
 from sklearn.preprocessing import LabelBinarizer
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
+
+from prosaic_common.utils.logger import logger
 
 from .model import (
     CNNSA,

@@ -15,6 +15,7 @@ Run from prosaic-research root:
 import json
 import os
 import random
+
 import numpy as np
 from tqdm import tqdm
 
@@ -116,7 +117,9 @@ class Processor:
         logger.info(f"Loading {tracks_table_name} table...")
         tracks = self.bigquery.get_df_from_table_name(tracks_table_name)
         keywords_dict = {}
-        logger.info(f"Get the keywords for each song for the '{self.category}' category...")
+        logger.info(
+            f"Get the keywords for each song for the '{self.category}' category..."
+        )
 
         n_songs = len(tracks["file_path"])
         for song_index in tqdm(range(n_songs)):
@@ -150,7 +153,7 @@ class Processor:
                 for kw, score in keywords_dict.items():
                     # Check if the keyword exists in our tag selection
                     index = np.nonzero(self.bmg_tags == kw)[0]
-                    if len(index) > 0: 
+                    if len(index) > 0:
                         tag_indices.append(index)
                         tag_scores.append(score)
                 if tag_indices:
