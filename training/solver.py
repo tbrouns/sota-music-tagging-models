@@ -212,7 +212,7 @@ class Solver(object):
             self.mlb = LabelBinarizer().fit(TAGS)
         elif self.dataset == "bmg":
             self.num_classes = self.data_loader.dataset.num_keywords
-            from .data_loader.bmg_loader import get_audio_loader
+            from ..data_loader.bmg_loader import get_audio_loader
 
             self.val_loader = get_audio_loader(config=self.config, split="VAL")
 
