@@ -5,13 +5,7 @@ Pre-requisite. First run:
 """
 
 import os
-
-import librosa
 import numpy as np
-import requests
-import soundfile as sf
-import torchaudio
-import torchaudio.transforms as T
 from torch.utils import data
 
 from prosaic_common.config import get_cache_dir

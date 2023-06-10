@@ -12,13 +12,10 @@ Run from prosaic-research root:
 """
 
 
-import glob
 import json
 import logging
 import os
 import random
-
-import librosa
 import numpy as np
 from tqdm import tqdm
 
@@ -27,14 +24,12 @@ from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
 from prosaic_common.utils.utils_data import (
-    get_basename_no_extension,
     load_pickle,
     save_pickle,
 )
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-
 
 
 class Processor:
@@ -51,10 +46,16 @@ class Processor:
         self.bmg_taxonomy = self.bigquery.get_df_from_table_name("bmg_taxonomy")
         self.bmg_labels = self.bmg_taxonomy["label"].to_numpy()
         # Get the PKL files from Google Storage
-        self.keyword_mapping = self.download_pickle(self.cfg["match_tags"]["keyword_dict_mapped"])
-        self.keyword_cleaning = self.download_pickle(self.cfg["match_tags"]["keyword_dict_cleaned"])
+        self.keyword_mapping = self.download_pickle(
+            self.cfg["match_tags"]["keyword_dict_mapped"]
+        )
+        self.keyword_cleaning = self.download_pickle(
+            self.cfg["match_tags"]["keyword_dict_cleaned"]
+        )
         if self.keyword_mapping is None or self.keyword_cleaning is None:
-              raise Exception("pkl files not found on storage. Run `data_processing/match_tags.ipynb` first")
+            raise Exception(
+                "pkl files not found on storage. Run `data_processing/match_tags.ipynb` first"
+            )
         self.missing_set = self.download_pickle(self.cfg["match_tags"]["missing_files"])
         if self.missing_set is not None:
             self.create_missing_set = False
@@ -62,26 +63,30 @@ class Processor:
         else:
             self.missing_set = set()
             self.create_missing_set = True
-            self.missing_set_path = os.path.join(self.cache_dir, self.cfg["match_tags"]["missing_files"])
+            self.missing_set_path = os.path.join(
+                self.cache_dir, self.cfg["match_tags"]["missing_files"]
+            )
         self.data_dict = {}
         self.test_size = 2000
         self.val_size = 2000
-    
+
     def download_pickle(self, filename):
-        save_path = self.bucket_artifacts.download_to_file(load_path=os.path.join("tagging", filename))
+        save_path = self.bucket_artifacts.download_to_file(
+            load_path=os.path.join("tagging", filename)
+        )
         if save_path is not None:
             contents = load_pickle(save_path)
         else:
             contents = None
         return contents
-    
+
     def get_pickle_filepath(self, split):
         return os.path.join(self.cache_dir, f"bmg_{split}.pkl")
-    
+
     def save_split(self, filepaths, split="train"):
         split_dict = dict((k, self.data_dict[k]) for k in filepaths)
         save_pickle(self.get_pickle_filepath(split), split_dict)
-    
+
     def load_train_val_test_split(self):
         splits = ["train", "val", "test"]
         save_path_dict = {}
@@ -92,7 +97,7 @@ class Processor:
             else:
                 return None
         return save_path_dict
-    
+
     def save_train_val_test_split(self):
         logger.info("Do train/val/test split...")
         filepath_list = list(self.data_dict.keys())
@@ -103,19 +108,16 @@ class Processor:
         self.save_split(test_file_list, split="test")
         self.save_split(val_file_list, split="val")
         self.save_split(train_file_list, split="train")
-    
+
     def get_tag_indices_and_scores(self):
-        tracks_table_name = self.cfg['data']['tracks_table']
+        tracks_table_name = self.cfg["data"]["tracks_table"]
         logger.info(f"Loading {tracks_table_name} table...")
         tracks = self.bigquery.get_df_from_table_name(tracks_table_name)
-        n_bmg_labels = self.bmg_labels.shape[0]
         keywords_dict = {}
         logger.info("Get the keywords for each song...")
-        
+
         n_songs = len(tracks["file_path"])
-        data_dict = {}
         for song_index in tqdm(range(n_songs)):
-            multi_hot_vector = np.zeros(n_bmg_labels, dtype=float)
             filepath = tracks["file_path"][song_index]
             bucket_path = os.path.join("harvest-extract", filepath)
             tag_indices = []
@@ -127,7 +129,6 @@ class Processor:
                 # Get the raw free-text keywords
                 record = tracks["record"][song_index]
                 keywords_raw = json.loads(record)["track"]["keywords"]
-                keyword_indices_for_song = []
                 keywords_dict = {}
                 for kw_raw in keywords_raw:
                     # First clean the raw keywords
@@ -157,23 +158,28 @@ class Processor:
                 self.missing_set.add(filepath)
 
     def get_songs_and_keywords(self):
-        
+
         save_path_dict = self.load_train_val_test_split()
-        
+
         if save_path_dict is None:
-            
+
             # Get the data dict
             self.get_tag_indices_and_scores()
-            
+
             # Train/val/test split
             self.save_train_val_test_split()
-            
+
             # Save set of missing files
             if self.create_missing_set:
-                
-                save_pickle(self.missing_set_path, self.missing_set)        
-                upload_path = os.path.join("tagging", os.path.basename(self.missing_set_path))
-                self.bucket_artifacts.upload_file(self.missing_set_path, save_path=upload_path)
+
+                save_pickle(self.missing_set_path, self.missing_set)
+                upload_path = os.path.join(
+                    "tagging", os.path.basename(self.missing_set_path)
+                )
+                self.bucket_artifacts.upload_file(
+                    self.missing_set_path, save_path=upload_path
+                )
+
 
 if __name__ == "__main__":
     p = Processor()
