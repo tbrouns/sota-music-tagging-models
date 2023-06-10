@@ -19,12 +19,11 @@ import numpy as np
 from tqdm import tqdm
 
 from prosaic_common.config import get_cache_dir, get_config_and_combine
-from prosaic_common.logger import mute_logging
 from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
-from prosaic_common.utils.logger import logger
+from prosaic_common.utils.logger import logger, mute_logging
 from prosaic_common.utils.utils_data import (
-    get_bmg_labels_for_category,
+    get_bmg_tags_for_category,
     load_pickle,
     save_pickle,
 )
@@ -46,7 +45,7 @@ class Processor:
         self.bigquery = BigQuery()
         # Get the labels
         self.category = category
-        self.bmg_labels = get_bmg_labels_for_category(
+        self.bmg_tags = get_bmg_tags_for_category(
             bigquery=self.bigquery, category=self.category
         )
         # Get the PKL files from Google Storage
@@ -93,7 +92,8 @@ class Processor:
         splits = ["train", "val", "test"]
         save_path_dict = {}
         for split in splits:
-            save_path = self.get_pickle_filepath(split=split)
+            filename = get_pickle_filename(split=split, category=self.category)
+            save_path = os.path.join(self.cache_dir, filename)
             if os.path.isfile(save_path):
                 save_path_dict[split] = save_path
             else:
@@ -116,7 +116,7 @@ class Processor:
         logger.info(f"Loading {tracks_table_name} table...")
         tracks = self.bigquery.get_df_from_table_name(tracks_table_name)
         keywords_dict = {}
-        logger.info("Get the keywords for each song...")
+        logger.info(f"Get the keywords for each song for the '{self.category}' category...")
 
         n_songs = len(tracks["file_path"])
         for song_index in tqdm(range(n_songs)):
@@ -148,9 +148,11 @@ class Processor:
                                         keywords_dict[kw] = score
                 # Save the indices and corresponding scores
                 for kw, score in keywords_dict.items():
-                    index = np.nonzero(self.bmg_labels == kw)[0][0]
-                    tag_indices.append(index)
-                    tag_scores.append(score)
+                    # Check if the keyword exists in our tag selection
+                    index = np.nonzero(self.bmg_tags == kw)[0]
+                    if len(index) > 0: 
+                        tag_indices.append(index)
+                        tag_scores.append(score)
                 if tag_indices:
                     self.data_dict[filepath] = (
                         np.array(tag_indices),

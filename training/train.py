@@ -1,6 +1,8 @@
 import argparse
 import os
 
+from prosaic_common.utils.logger import logger
+
 from .solver import Solver
 
 
@@ -32,10 +34,12 @@ def train(config):
         config.input_length = 15 * 16000
 
     # get data loder
+    logger.info("Getting dataloader...")
     train_loader = get_audio_loader(
         config=config,
         split="TRAIN",
     )
+    logger.info("Starting training...")
     solver = Solver(data_loader=train_loader, config=config)
     solver.train()
 

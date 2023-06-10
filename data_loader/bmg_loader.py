@@ -14,7 +14,7 @@ from prosaic_common.queries import BigQuery
 from prosaic_common.storage import GCP_BUCKETS
 from prosaic_common.utils.logger import logger
 from prosaic_common.utils.utils_audio import load_audio_from_bucket
-from prosaic_common.utils.utils_data import load_pickle, get_bmg_labels_for_category
+from prosaic_common.utils.utils_data import load_pickle, get_bmg_tags_for_category
 
 from ..utils import get_pickle_filename
 
@@ -27,12 +27,12 @@ class AudioFolder(data.Dataset):
         self.mp3_dir = os.path.join(self.cache_dir, "mp3")
         os.makedirs(self.mp3_dir, exist_ok=True)
         self.fs = fs
-        logger.info(f"Picking labels for the {category} category...")
+        logger.info(f"Picking tags for the {category} category...")
         self.category = category
-        self.bmg_labels = get_bmg_labels_for_category(
+        self.bmg_tags = get_bmg_tags_for_category(
             bigquery=self.bigquery, category=self.category
         )
-        self.num_keywords = self.bmg_labels.shape[0]
+        self.num_keywords = self.bmg_tags.shape[0]
         self.split = split
         self.input_length = input_length
         logger.info(f"There are {self.num_keywords} tags in the {self.split} data.")
@@ -57,6 +57,8 @@ class AudioFolder(data.Dataset):
             x_audio = np.array(x[random_idx : random_idx + self.input_length])
             tag_indices, tag_scores = self.file_dict[file_path]
             # Get the tag labels
+            tag_indices = tag_indices.flatten()
+            tag_scores = tag_scores.flatten()
             y_labels[tag_indices] = tag_scores
         else:
             # Return random signal
@@ -73,7 +75,7 @@ class AudioFolder(data.Dataset):
             self.file_dict = load_pickle(pkl_path)
             self.file_list = list(self.file_dict.keys())
         else:
-            raise f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first."
+            raise Exception(f"Pickle path does not exist: {pkl_path}. You need to run `preprocessing/bmg_read.py` first.")
 
 
 def get_audio_loader(config, split="TRAIN"):
