@@ -247,7 +247,7 @@ class Solver(object):
         # load pretrained model
         # TODO: load the model from the bucket
         if os.path.isfile(self.model_load_path):
-            print(f"Loading model from: {self.model_load_path}...")
+            logger.info(f"Loading model from: {self.model_load_path}...")
             self.load(self.model_load_path)
             basename = os.path.splitext(self.model_load_path)[0]
             iteration_start, best_metric = basename.split("_")[-2:]
@@ -255,7 +255,7 @@ class Solver(object):
                 self.iteration_start = int(iteration_start)
                 self.best_metric = float(best_metric)
         else:
-            print(f"Pre-trained model not found: {self.model_load_path}")
+            logger.info(f"Pre-trained model not found: {self.model_load_path}")
 
         # optimizers
         self.optimizer = torch.optim.Adam(
@@ -315,16 +315,16 @@ class Solver(object):
                     cumulative_loss = 0.0
                 if ctr % self.val_step == 0:
                     # validation
-                    print("Running validation ...")
+                    logger.info("Running validation ...")
                     self.validation(iteration)
-                    print("Best metric:", self.best_metric)
+                    logger.info(f"Best metric: {self.best_metric}")
 
             # # schedule optimizer
             # current_optimizer, drop_counter = self.opt_schedule(
             #     current_optimizer, drop_counter
             # )
 
-        print(
+        logger.info(
             "[%s] Train finished. Elapsed: %s"
             % (
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -345,7 +345,7 @@ class Solver(object):
             )
             current_optimizer = "sgd_1"
             drop_counter = 0
-            print("sgd 1e-3")
+            logger.info("sgd 1e-3")
         # first drop
         if current_optimizer == "sgd_1" and drop_counter == 20:
             self.load(self.model_save_path)
@@ -353,14 +353,14 @@ class Solver(object):
                 pg["lr"] = 0.0001
             current_optimizer = "sgd_2"
             drop_counter = 0
-            print("sgd 1e-4")
+            logger.info("sgd 1e-4")
         # second drop
         if current_optimizer == "sgd_2" and drop_counter == 20:
             self.load(self.model_save_path)
             for pg in self.optimizer.param_groups:
                 pg["lr"] = 0.00001
             current_optimizer = "sgd_3"
-            print("sgd 1e-5")
+            logger.info("sgd 1e-5")
         return current_optimizer, drop_counter
 
     def save(self, filename):
@@ -415,7 +415,7 @@ class Solver(object):
             loss,
             datetime.timedelta(seconds=time.time() - start_t),
         )
-        print(log_string)
+        logger.info(log_string)
 
     def validation(self, iteration):
         roc_auc, pr_auc, loss = self.get_validation_score(iteration)
@@ -489,9 +489,9 @@ class Solver(object):
         loss = np.mean(losses)
         est_array, gt_array = np.array(est_array), np.array(gt_array)
         roc_auc, pr_auc = self.get_auc(est_array, gt_array)
-        print("loss: %.4f" % loss)
-        print("roc_auc: %.4f" % roc_auc)
-        print("pr_auc: %.4f" % pr_auc)
+        logger.info("loss: %.4f" % loss)
+        logger.info("roc_auc: %.4f" % roc_auc)
+        logger.info("pr_auc: %.4f" % pr_auc)
         self.writer.add_scalar("Loss/valid", loss, iteration)
         self.writer.add_scalar("AUC/ROC", roc_auc, iteration)
         self.writer.add_scalar("AUC/PR", pr_auc, iteration)
